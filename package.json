@@ -1,0 +1,40 @@
+{
+  "name": "node-auth-kit",
+  "version": "1.0.0",
+  "description": "Reusable, database-agnostic authentication module for Node.js/Express (JWT access + rotating refresh tokens, password reset, pluggable DB adapters).",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./adapters/memory": "./src/adapters/memoryAdapter.js",
+    "./adapters/mongo": "./src/adapters/mongoAdapter.js",
+    "./adapters/postgres": "./src/adapters/postgresAdapter.js"
+  },
+  "scripts": {
+    "start": "node examples/server.js",
+    "dev": "node --watch examples/server.js",
+    "test": "node --test"
+  },
+  "keywords": ["auth", "authentication", "jwt", "express", "refresh-token", "reusable"],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "express": "^4.21.0",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "peerDependencies": {
+    "mongodb": ">=6",
+    "pg": ">=8"
+  },
+  "peerDependenciesMeta": {
+    "mongodb": { "optional": true },
+    "pg": { "optional": true }
+  },
+  "devDependencies": {
+    "dotenv": "^16.4.5",
+    "supertest": "^7.0.0"
+  }
+}
