@@ -120,10 +120,14 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
     return { user: toPublicUser(updated), ...(await tokens.issueTokenPair(updated)) };
   }
 
-  /** Always resolves the same way so attackers can't discover registered emails. */
+  /** Runs after the response, so timing and failures can't reveal which emails are registered. */
   async function forgotPassword({ email }) {
     const normalized = normalizeEmail(email);
-    const user = await adapter.findUserByEmail(normalized);
+    sendResetEmail(normalized).catch((err) => console.error('[auth] password reset email failed:', err));
+  }
+
+  async function sendResetEmail(email) {
+    const user = await adapter.findUserByEmail(email);
     if (!user) return;
     await tokens.revokeAllForUser(user.id, TOKEN_TYPES.PASSWORD_RESET);
     const token = await tokens.issueOpaqueToken(user.id, TOKEN_TYPES.PASSWORD_RESET, config.resetTokenTtlMs);
