@@ -160,6 +160,23 @@ describe('required email verification', () => {
   });
 });
 
+describe('password length', () => {
+  const email = 'long@example.com';
+  const max = 'a1'.repeat(36); // exactly 72 bytes
+
+  it('rejects a password over 72 bytes, even with a custom policy', async () => {
+    const { app } = buildApp({ passwordPolicy: () => null });
+    await request(app).post('/auth/register').send({ email, password: max + 'x' }).expect(400);
+  });
+
+  it('does not accept a longer password that shares the first 72 bytes', async () => {
+    const { app } = buildApp();
+    await request(app).post('/auth/register').send({ email, password: max }).expect(201);
+    await request(app).post('/auth/login').send({ email, password: max + 'x' }).expect(401);
+    await request(app).post('/auth/login').send({ email, password: max }).expect(200);
+  });
+});
+
 describe('configuration', () => {
   it('fails fast on a bad adapter or weak secret', () => {
     assert.throws(() => createAuth({ adapter: {}, jwtSecret: 'x'.repeat(32) }), /missing methods/);

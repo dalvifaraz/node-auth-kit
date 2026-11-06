@@ -16,7 +16,6 @@ export function normalizeEmail(email) {
 export function defaultPasswordPolicy(password) {
   if (typeof password !== 'string') return 'Password is required';
   if (password.length < 8) return 'Password must be at least 8 characters';
-  if (password.length > 128) return 'Password must be at most 128 characters';
   if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
     return 'Password must contain at least one letter and one number';
   }

@@ -1,6 +1,9 @@
 import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 
+/** bcrypt ignores everything after this many bytes. */
+export const MAX_PASSWORD_BYTES = 72;
+
 export const hashPassword = (plain, rounds = 12) => bcrypt.hash(plain, rounds);
 export const verifyPassword = (plain, hash) => bcrypt.compare(plain, hash);
 
