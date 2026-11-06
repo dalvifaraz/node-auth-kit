@@ -2,6 +2,7 @@ import { createTokenService } from './services/tokenService.js';
 import { createAuthService } from './services/authService.js';
 import { createAuthenticate, requireRoles } from './middleware/authenticate.js';
 import { createRateLimiter } from './middleware/rateLimit.js';
+import { createSessionCookie } from './middleware/sessionCookie.js';
 import { createAuthRouter } from './routes/authRoutes.js';
 import { defaultPasswordPolicy } from './utils/validate.js';
 import { AuthError } from './utils/errors.js';
@@ -93,7 +94,8 @@ export function createAuth(options = {}) {
       : options.rateLimiter ?? createRateLimiter(options.rateLimit);
   // Admin routes always check the database, so a removed admin loses access immediately.
   const adminGuard = [createAuthenticate(tokens, adapter), requireRoles(config.adminRole)];
-  const router = createAuthRouter({ service, authenticate, adminGuard, rateLimiter });
+  const cookies = createSessionCookie(options.cookie, config.refreshTokenTtlMs);
+  const router = createAuthRouter({ service, authenticate, adminGuard, rateLimiter, cookies });
 
   /** Mount in your app after your routes so `authenticate` errors return JSON. */
   // eslint-disable-next-line no-unused-vars
