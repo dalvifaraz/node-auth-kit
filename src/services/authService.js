@@ -10,6 +10,7 @@ const isTooLong = (password) => Buffer.byteLength(password) > MAX_PASSWORD_BYTES
 
 export function createAuthService({ adapter, tokens, config, hooks }) {
   let dummyHash; // lazily created; used when the email doesn't exist
+  const lastEmailAt = new Map();
 
   const publicFields = [...PUBLIC_FIELDS, ...config.allowedRegisterFields, ...config.publicUserFields]
     .filter((field) => !PRIVATE_FIELDS.includes(field));
@@ -29,6 +30,16 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
     if (config.requireVerifiedEmail && !user.emailVerified) {
       throw Errors.forbidden('Please verify your email before logging in');
     }
+  };
+
+  /** True if this account was emailed too recently, so nobody can flood a mailbox. */
+  const isCoolingDown = (kind, userId) => {
+    const key = `${kind}:${userId}`;
+    const now = Date.now();
+    if (now - (lastEmailAt.get(key) ?? 0) < config.emailCooldownMs) return true;
+    for (const [k, at] of lastEmailAt) if (now - at >= config.emailCooldownMs) lastEmailAt.delete(k);
+    lastEmailAt.set(key, now);
+    return false;
   };
 
   /** A failing hook is logged, never allowed to break the request that triggered it. */
@@ -144,7 +155,7 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
 
   async function sendResetEmail(email) {
     const user = await adapter.findUserByEmail(email);
-    if (!user || user.disabled) return;
+    if (!user || user.disabled || isCoolingDown('reset', user.id)) return;
     await tokens.revokeAllForUser(user.id, TOKEN_TYPES.PASSWORD_RESET);
     const token = await tokens.issueOpaqueToken(user.id, TOKEN_TYPES.PASSWORD_RESET, config.resetTokenTtlMs);
     await hooks.sendPasswordResetEmail?.({ user: toPublicUser(user), token });
@@ -170,7 +181,7 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
   async function replaceVerificationEmail(email) {
     if (!config.emailVerification) return;
     const user = await adapter.findUserByEmail(email);
-    if (!user || user.disabled || user.emailVerified) return;
+    if (!user || user.disabled || user.emailVerified || isCoolingDown('verify', user.id)) return;
     await tokens.revokeAllForUser(user.id, TOKEN_TYPES.EMAIL_VERIFY);
     await sendVerificationEmail(user);
   }

@@ -2,7 +2,7 @@ import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
 import request from 'supertest';
-import { createAuth, memoryAdapter } from '../src/index.js';
+import { createAuth, memoryAdapter, emailConfigFromEnv } from '../src/index.js';
 import { runAdapterContract } from './adapterContract.js';
 
 runAdapterContract('memory', () => memoryAdapter());
@@ -669,6 +669,112 @@ describe('cookie login', () => {
     const res = await request(app).post('/auth/register').send(creds).expect(201);
     assert.ok(res.body.refreshToken);
     assert.equal(res.headers['set-cookie'], undefined);
+  });
+});
+
+describe('built-in email', () => {
+  function mailbox() {
+    const mails = [];
+    return { mails, transport: { sendMail: async (mail) => { mails.push(mail); } } };
+  }
+  const tick = () => new Promise((resolve) => setImmediate(resolve));
+  const tokenIn = (mail) => new URL(mail.text.match(/https?:\/\/\S+/)[0]).searchParams.get('token');
+  const emailApp = (transport, email = {}, overrides = {}) => buildApp({
+    hooks: {},
+    email: { transport, from: 'App <no-reply@example.com>', appUrl: 'https://app.example.com/', appName: 'Demo', ...email },
+    ...overrides,
+  });
+
+  it('sends a working password reset email', async () => {
+    const { mails, transport } = mailbox();
+    const { app } = emailApp(transport);
+    await request(app).post('/auth/register').send(creds);
+    await request(app).post('/auth/forgot-password').send({ email: creds.email }).expect(200);
+    await tick();
+    const [mail] = mails;
+    assert.equal(mail.to, 'jane@example.com');
+    assert.equal(mail.from, 'App <no-reply@example.com>');
+    assert.equal(mail.subject, 'Reset your Demo password');
+    assert.match(mail.text, /https:\/\/app\.example\.com\/reset-password\?token=/);
+    assert.match(mail.text, /expires in 1 hour\./);
+    await request(app).post('/auth/reset-password').send({ token: tokenIn(mail), newPassword: 'changed999' }).expect(204);
+  });
+
+  it('sends a working verification email', async () => {
+    const { mails, transport } = mailbox();
+    const { app } = emailApp(transport, {}, { requireVerifiedEmail: true });
+    await request(app).post('/auth/register').send(creds).expect(201);
+    const [mail] = mails;
+    assert.match(mail.text, /\/verify-email\?token=/);
+    assert.match(mail.text, /expires in 2 days\./);
+    await request(app).post('/auth/verify-email').send({ token: tokenIn(mail) }).expect(204);
+    await request(app).post('/auth/login').send(creds).expect(200);
+  });
+
+  it('escapes user text in the HTML', async () => {
+    const { mails, transport } = mailbox();
+    const { app } = emailApp(transport, {}, { emailVerification: true });
+    await request(app).post('/auth/register').send({ ...creds, name: '<img src=x>' });
+    assert.ok(!mails[0].html.includes('<img'));
+    assert.ok(mails[0].html.includes('&lt;img'));
+  });
+
+  it('supports custom paths and templates', async () => {
+    const { mails, transport } = mailbox();
+    const templates = { passwordReset: ({ link }) => ({ subject: 'Custom', text: link, html: link }) };
+    const { app } = emailApp(transport, { templates, resetPath: '/auth/new-password' });
+    await request(app).post('/auth/register').send(creds);
+    await request(app).post('/auth/forgot-password').send({ email: creds.email });
+    await tick();
+    assert.equal(mails[0].subject, 'Custom');
+    assert.match(mails[0].text, /\/auth\/new-password\?token=/);
+  });
+
+  it('lets a hook replace built-in email', async () => {
+    const { mails, transport } = mailbox();
+    let hooked = false;
+    const hooks = { sendPasswordResetEmail: () => { hooked = true; } };
+    const { app } = emailApp(transport, {}, { hooks });
+    await request(app).post('/auth/register').send(creds);
+    await request(app).post('/auth/forgot-password').send({ email: creds.email });
+    await tick();
+    assert.ok(hooked);
+    assert.equal(mails.length, 0);
+  });
+
+  it('limits how often one account is emailed', async () => {
+    const { mails, transport } = mailbox();
+    const { app } = emailApp(transport);
+    await request(app).post('/auth/register').send(creds);
+    for (let i = 0; i < 3; i++) {
+      await request(app).post('/auth/forgot-password').send({ email: creds.email }).expect(200);
+      await tick();
+    }
+    assert.equal(mails.length, 1);
+  });
+
+  it('allows another email after the cooldown', async () => {
+    const { mails, transport } = mailbox();
+    const { app } = emailApp(transport, {}, { emailCooldownMs: 0 });
+    await request(app).post('/auth/register').send(creds);
+    for (let i = 0; i < 2; i++) {
+      await request(app).post('/auth/forgot-password').send({ email: creds.email });
+      await tick();
+    }
+    assert.equal(mails.length, 2);
+  });
+
+  it('rejects incomplete settings at startup', () => {
+    const { transport } = mailbox();
+    assert.throws(() => emailApp(undefined), /smtp/);
+    assert.throws(() => emailApp(transport, { from: undefined }), /from/);
+    assert.throws(() => emailApp(transport, { appUrl: 'app.example.com' }), /appUrl/);
+  });
+
+  it('reads settings from the environment', () => {
+    assert.equal(emailConfigFromEnv({}), null);
+    const env = { SMTP_URL: 'smtp://u:p@mail.example.com:587', EMAIL_FROM: 'a@b.co', APP_URL: 'https://a.co', APP_NAME: 'A' };
+    assert.deepEqual(emailConfigFromEnv(env), { smtp: env.SMTP_URL, from: 'a@b.co', appUrl: 'https://a.co', appName: 'A' });
   });
 });
 
