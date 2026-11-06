@@ -572,6 +572,106 @@ describe('admin api', () => {
   });
 });
 
+describe('cookie login', () => {
+  const cookieOf = (res) => res.headers['set-cookie'][0];
+  const pair = (res) => cookieOf(res).split(';')[0];
+  const session = async (options = true) => {
+    const ctx = buildApp({ cookie: options });
+    const res = await request(ctx.app).post('/auth/register').send(creds).expect(201);
+    return { ...ctx, res, cookie: pair(res) };
+  };
+
+  it('keeps the refresh token out of the response body', async () => {
+    const { res } = await session();
+    assert.equal(res.body.refreshToken, undefined);
+    assert.ok(res.body.accessToken);
+  });
+
+  it('sets a locked-down cookie scoped to the auth routes', async () => {
+    const { res } = await session();
+    const cookie = cookieOf(res);
+    for (const attribute of ['HttpOnly', 'Secure', 'SameSite=Strict', 'Path=/auth']) assert.ok(cookie.includes(attribute), attribute);
+    assert.match(cookie, /Max-Age=2592000/);
+  });
+
+  it('refreshes from the cookie and rotates it', async () => {
+    const { app, cookie } = await session();
+    const res = await request(app).post('/auth/refresh').set('Cookie', cookie).expect(200);
+    assert.equal(res.body.refreshToken, undefined);
+    assert.ok(res.body.accessToken);
+    assert.notEqual(pair(res), cookie);
+    await request(app).post('/auth/refresh').set('Cookie', cookie).expect(401);
+    await request(app).post('/auth/refresh').set('Cookie', pair(res)).expect(200);
+  });
+
+  it('logs out from the cookie and clears it', async () => {
+    const { app, cookie } = await session();
+    const res = await request(app).post('/auth/logout').set('Cookie', cookie).expect(204);
+    assert.match(cookieOf(res), /Expires=Thu, 01 Jan 1970/);
+    await request(app).post('/auth/refresh').set('Cookie', cookie).expect(401);
+  });
+
+  it('clears the cookie on logout-all', async () => {
+    const { app, res } = await session();
+    const out = await request(app).post('/auth/logout-all').set(...bearer(res.body.accessToken)).expect(204);
+    assert.match(cookieOf(out), /Expires=Thu, 01 Jan 1970/);
+  });
+
+  it('keeps the cookie session after a password change', async () => {
+    const { app, res, cookie } = await session();
+    const changed = await request(app).post('/auth/change-password').set(...bearer(res.body.accessToken)).set('Cookie', cookie)
+      .send({ currentPassword: creds.password, newPassword: 'changed999' }).expect(200);
+    assert.equal(changed.body.refreshToken, undefined);
+    await request(app).post('/auth/refresh').set('Cookie', pair(changed)).expect(200);
+  });
+
+  it('still serves mobile clients, which ask for tokens in the body', async () => {
+    const { app } = await session();
+    const login = await request(app).post('/auth/login').send({ ...creds, tokenDelivery: 'body' }).expect(200);
+    assert.ok(login.body.refreshToken);
+    assert.equal(login.headers['set-cookie'], undefined);
+    const next = await request(app).post('/auth/refresh').send({ refreshToken: login.body.refreshToken }).expect(200);
+    assert.ok(next.body.refreshToken);
+  });
+
+  it('never moves a cookie session into a readable response', async () => {
+    const { app, cookie } = await session();
+    const res = await request(app).post('/auth/refresh').set('Cookie', cookie).send({ tokenDelivery: 'body' }).expect(200);
+    assert.equal(res.body.refreshToken, undefined);
+  });
+
+  it('sets no cookie for an unverified user', async () => {
+    const { app } = buildApp({ cookie: true, requireVerifiedEmail: true });
+    const res = await request(app).post('/auth/register').send(creds).expect(201);
+    assert.equal(res.headers['set-cookie'], undefined);
+  });
+
+  it('checks the origin of cookie requests', async () => {
+    const { app, cookie } = await session({ sameSite: 'none', allowedOrigins: ['https://app.example.com'] });
+    await request(app).post('/auth/refresh').set('Cookie', cookie).set('Origin', 'https://evil.example').expect(403);
+    await request(app).post('/auth/logout').set('Cookie', cookie).set('Origin', 'https://evil.example').expect(403);
+    await request(app).post('/auth/refresh').set('Cookie', cookie).set('Origin', 'https://app.example.com').expect(200);
+  });
+
+  it('ignores a malformed cookie', async () => {
+    const { app } = await session();
+    await request(app).post('/auth/refresh').set('Cookie', 'auth_refresh=%E0%A4%A').expect(401);
+  });
+
+  it('rejects unsafe cookie options at startup', () => {
+    assert.throws(() => buildApp({ cookie: { sameSite: 'none' } }), /allowedOrigins/);
+    assert.throws(() => buildApp({ cookie: { sameSite: 'none', secure: false, allowedOrigins: ['https://a.co'] } }), /secure/);
+    assert.throws(() => buildApp({ cookie: { sameSite: 'loose' } }), /sameSite/);
+  });
+
+  it('leaves everything in the body when cookies are off', async () => {
+    const { app } = buildApp();
+    const res = await request(app).post('/auth/register').send(creds).expect(201);
+    assert.ok(res.body.refreshToken);
+    assert.equal(res.headers['set-cookie'], undefined);
+  });
+});
+
 describe('configuration', () => {
   it('fails fast on a bad adapter or weak secret', () => {
     assert.throws(() => createAuth({ adapter: {}, jwtSecret: 'x'.repeat(32) }), /missing methods/);
