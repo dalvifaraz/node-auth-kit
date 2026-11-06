@@ -3,6 +3,7 @@ import { createAuthService } from './services/authService.js';
 import { createAuthenticate, requireRoles } from './middleware/authenticate.js';
 import { createRateLimiter } from './middleware/rateLimit.js';
 import { createSessionCookie } from './middleware/sessionCookie.js';
+import { createEmailHooks, emailConfigFromEnv } from './services/mailer.js';
 import { createAuthRouter } from './routes/authRoutes.js';
 import { defaultPasswordPolicy } from './utils/validate.js';
 import { AuthError } from './utils/errors.js';
@@ -30,7 +31,7 @@ const DAY = 24 * HOUR;
  * @returns {{ router, authenticate, requireRoles, service, tokens, errorHandler }}
  */
 export function createAuth(options = {}) {
-  const { adapter, hooks = {} } = options;
+  const { adapter } = options;
 
   if (!adapter) throw new Error('createAuth: `adapter` is required');
   const missing = REQUIRED_ADAPTER_METHODS.filter((m) => typeof adapter[m] !== 'function');
@@ -58,6 +59,7 @@ export function createAuth(options = {}) {
     refreshReuseGraceMs: options.refreshReuseGraceMs ?? 10 * 1000,
     resetTokenTtlMs: options.resetTokenTtlMs ?? 60 * 60 * 1000,
     verifyTokenTtlMs: options.verifyTokenTtlMs ?? 2 * DAY,
+    emailCooldownMs: options.emailCooldownMs ?? 60 * 1000,
     issuer: options.issuer ?? 'node-auth-kit',
     audience: options.audience ?? 'node-auth-kit',
     bcryptRounds: options.bcryptRounds ?? 12,
@@ -70,6 +72,9 @@ export function createAuth(options = {}) {
     emailVerification: options.emailVerification ?? options.requireVerifiedEmail ?? false,
     requireVerifiedEmail: options.requireVerifiedEmail ?? false,
   };
+
+  // Hooks written by the app take priority over built-in email.
+  const hooks = { ...(options.email ? createEmailHooks(options.email, config) : {}), ...options.hooks };
 
   if (config.emailVerification && !hooks.sendVerificationEmail) {
     throw new Error('createAuth: `emailVerification` needs a `sendVerificationEmail` hook');
@@ -109,5 +114,5 @@ export function createAuth(options = {}) {
   return { router, authenticate, requireRoles, service, tokens, errorHandler };
 }
 
-export { AuthError, requireRoles, defaultPasswordPolicy, createRateLimiter };
+export { AuthError, requireRoles, defaultPasswordPolicy, createRateLimiter, emailConfigFromEnv };
 export { memoryAdapter } from './adapters/memoryAdapter.js';
