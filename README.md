@@ -4,7 +4,7 @@ A reusable, **database-agnostic** authentication module for Node.js + Express.
 Write it once, drop it into every new project, and switch the database by swapping one adapter.
 
 - Register / login / logout / logout-all / `me`
-- JWT access tokens (short-lived) + **rotating opaque refresh tokens** (stored hashed)
+- JWT access tokens (short-lived) + **rotating opaque refresh tokens** (stored hashed, with stolen-token detection)
 - Forgot / reset password, change password, optional email verification
 - `authenticate` and `requireRoles()` middleware for your own routes
 - bcrypt password hashing, constant-time login (no user enumeration), built-in rate limiting
@@ -118,6 +118,7 @@ Errors are always `{ error: { code, message } }`.
 | `jwtSecret` | **required** | ≥ 32 chars |
 | `accessTokenTtl` | `'15m'` | any `jsonwebtoken` duration |
 | `refreshTokenTtlMs` | 30 days | |
+| `refreshReuseGraceMs` | 10 seconds | replaying a used refresh token after this long ends all of the user's sessions |
 | `resetTokenTtlMs` | 1 hour | |
 | `bcryptRounds` | `12` | |
 | `checkTokenVersion` | `true` | check each access token against the database, so revocation and role changes apply at once; `false` skips that lookup, and access tokens then stay valid until they expire |
