@@ -4,7 +4,7 @@ import { Errors } from '../utils/errors.js';
 import { TOKEN_TYPES } from './tokenService.js';
 
 const PUBLIC_FIELDS = ['id', 'email', 'name', 'roles', 'emailVerified', 'createdAt', 'updatedAt'];
-const PRIVATE_FIELDS = ['passwordHash'];
+const PRIVATE_FIELDS = ['passwordHash', 'tokenVersion'];
 
 const isTooLong = (password) => Buffer.byteLength(password) > MAX_PASSWORD_BYTES;
 
@@ -42,6 +42,7 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
       name: name ?? null,
       roles: config.defaultRoles,
       emailVerified: false,
+      tokenVersion: 0,
       ...pick(extra, config.allowedRegisterFields),
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -83,8 +84,18 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
     if (refreshToken) await tokens.revokeRefreshToken(refreshToken);
   }
 
+  /** Ends every session: refresh tokens are deleted and existing access tokens stop working. */
+  async function revokeSessions(userId) {
+    const user = await adapter.findUserById(userId);
+    if (!user) return null;
+    const tokenVersion = (user.tokenVersion ?? 0) + 1;
+    await adapter.updateUser(user.id, { tokenVersion, updatedAt: new Date() });
+    await tokens.revokeAllForUser(user.id);
+    return { ...user, tokenVersion };
+  }
+
   async function logoutAll(userId) {
-    await tokens.revokeAllForUser(userId);
+    await revokeSessions(userId);
   }
 
   async function me(userId) {
@@ -104,7 +115,8 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
       passwordHash: await hashPassword(newPassword, config.bcryptRounds),
       updatedAt: new Date(),
     });
-    await tokens.revokeAllForUser(user.id); // sign out other sessions
+    const updated = await revokeSessions(user.id);
+    return { user: toPublicUser(updated), ...(await tokens.issueTokenPair(updated)) };
   }
 
   /** Always resolves the same way so attackers can't discover registered emails. */
@@ -124,7 +136,7 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
       passwordHash: await hashPassword(newPassword, config.bcryptRounds),
       updatedAt: new Date(),
     });
-    await tokens.revokeAllForUser(record.userId);
+    await revokeSessions(record.userId);
   }
 
   async function verifyEmail({ token }) {

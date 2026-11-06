@@ -13,7 +13,7 @@ export function createTokenService({ adapter, config }) {
 
   function signAccessToken(user) {
     return jwt.sign(
-      { sub: String(user.id), email: user.email, roles: user.roles ?? [] },
+      { sub: String(user.id), email: user.email, roles: user.roles ?? [], tv: user.tokenVersion ?? 0 },
       jwtSecret,
       { expiresIn: accessTokenTtl, issuer, audience, algorithm: 'HS256' }
     );

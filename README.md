@@ -101,7 +101,7 @@ runAdapterContract('mysql', () => mysqlAdapter({ pool }));
 | POST | `/logout` | `{ refreshToken }` | — |
 | POST | `/logout-all` | — | Bearer |
 | GET | `/me` | — | Bearer |
-| POST | `/change-password` | `{ currentPassword, newPassword }` | Bearer |
+| POST | `/change-password` | `{ currentPassword, newPassword }` (returns new tokens) | Bearer |
 | POST | `/forgot-password` | `{ email }` | — |
 | POST | `/reset-password` | `{ token, newPassword }` | — |
 | POST | `/verify-email` | `{ token }` | — |
@@ -120,6 +120,7 @@ Errors are always `{ error: { code, message } }`.
 | `refreshTokenTtlMs` | 30 days | |
 | `resetTokenTtlMs` | 1 hour | |
 | `bcryptRounds` | `12` | |
+| `checkTokenVersion` | `true` | check each access token against the database, so revocation and role changes apply at once; `false` skips that lookup, and access tokens then stay valid until they expire |
 | `defaultRoles` | `['user']` | |
 | `allowedRegisterFields` | `[]` | extra fields accepted at register (e.g. `['phone']`) |
 | `publicUserFields` | `[]` | extra user fields returned to clients; everything else stays private |

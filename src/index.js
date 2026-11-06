@@ -45,6 +45,7 @@ export function createAuth(options = {}) {
     issuer: options.issuer ?? 'node-auth-kit',
     audience: options.audience ?? 'node-auth-kit',
     bcryptRounds: options.bcryptRounds ?? 12,
+    checkTokenVersion: options.checkTokenVersion ?? true,
     defaultRoles: options.defaultRoles ?? ['user'],
     allowedRegisterFields: options.allowedRegisterFields ?? [], // extra fields accepted on /register
     publicUserFields: options.publicUserFields ?? [], // extra user fields returned to clients
@@ -55,7 +56,7 @@ export function createAuth(options = {}) {
 
   const tokens = createTokenService({ adapter, config });
   const service = createAuthService({ adapter, tokens, config, hooks });
-  const authenticate = createAuthenticate(tokens);
+  const authenticate = createAuthenticate(tokens, config.checkTokenVersion ? adapter : null);
   const rateLimiter =
     options.rateLimiter === false || options.rateLimit === false
       ? null
