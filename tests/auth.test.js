@@ -25,8 +25,10 @@ function buildApp(overrides = {}) {
   app.get('/private', auth.authenticate, (req, res) => res.json({ userId: req.auth.userId }));
   app.get('/admin', auth.authenticate, auth.requireRoles('admin'), (_req, res) => res.json({ ok: true }));
   app.use(auth.errorHandler);
-  return { app, sent };
+  return { app, sent, auth };
 }
+
+const bearer = (token) => ['Authorization', 'Bearer ' + token];
 
 const creds = { email: 'Jane@Example.com', password: 'secret123' };
 
@@ -128,6 +130,33 @@ describe('email verification', () => {
     await request(app).post('/auth/login').send({ ...creds }).expect(403);
     await request(app).post('/auth/verify-email').send({ token: sent.verify.token }).expect(204);
     await request(app).post('/auth/login').send({ ...creds }).expect(200);
+  });
+});
+
+describe('required email verification', () => {
+  it('gives an unverified user no tokens at register', async () => {
+    const { app } = buildApp({ requireVerifiedEmail: true });
+    const res = await request(app).post('/auth/register').send(creds).expect(201);
+    assert.equal(res.body.user.email, 'jane@example.com');
+    assert.equal(res.body.accessToken, undefined);
+    assert.equal(res.body.refreshToken, undefined);
+  });
+
+  it('blocks refresh for an unverified user', async () => {
+    const { app, auth } = buildApp({ requireVerifiedEmail: true });
+    const { body } = await request(app).post('/auth/register').send(creds);
+    const { refreshToken } = await auth.tokens.issueTokenPair(body.user);
+    await request(app).post('/auth/refresh').send({ refreshToken }).expect(403);
+  });
+
+  it('sends the verification email without emailVerification being set', async () => {
+    const { app, sent } = buildApp({ requireVerifiedEmail: true });
+    await request(app).post('/auth/register').send(creds);
+    assert.ok(sent.verify.token);
+  });
+
+  it('rejects contradictory options at startup', () => {
+    assert.throws(() => buildApp({ requireVerifiedEmail: true, emailVerification: false }), /requireVerifiedEmail/);
   });
 });
 

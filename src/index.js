@@ -32,6 +32,10 @@ export function createAuth(options = {}) {
     throw new Error('createAuth: `jwtSecret` must be at least 32 characters');
   }
 
+  if (options.requireVerifiedEmail && options.emailVerification === false) {
+    throw new Error('createAuth: `requireVerifiedEmail` needs `emailVerification`');
+  }
+
   const config = {
     jwtSecret: options.jwtSecret,
     accessTokenTtl: options.accessTokenTtl ?? '15m',
@@ -44,7 +48,7 @@ export function createAuth(options = {}) {
     defaultRoles: options.defaultRoles ?? ['user'],
     allowedRegisterFields: options.allowedRegisterFields ?? [], // extra fields accepted on /register
     passwordPolicy: options.passwordPolicy ?? defaultPasswordPolicy,
-    emailVerification: options.emailVerification ?? false,
+    emailVerification: options.emailVerification ?? options.requireVerifiedEmail ?? false,
     requireVerifiedEmail: options.requireVerifiedEmail ?? false,
   };
 
