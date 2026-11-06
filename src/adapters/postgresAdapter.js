@@ -20,6 +20,7 @@ const COLUMNS = {
   name: 'name',
   roles: 'roles',
   emailVerified: 'email_verified',
+  tokenVersion: 'token_version',
   createdAt: 'created_at',
   updatedAt: 'updated_at',
 };
@@ -32,10 +33,12 @@ CREATE TABLE IF NOT EXISTS auth_users (
   name           TEXT,
   roles          TEXT[] NOT NULL DEFAULT '{}',
   email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+  token_version  INTEGER NOT NULL DEFAULT 0,
   profile        JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 0;
 CREATE TABLE IF NOT EXISTS auth_tokens (
   token_hash TEXT PRIMARY KEY,
   user_id    UUID NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
@@ -58,6 +61,7 @@ export function postgresAdapter({ pool }) {
       name: row.name,
       roles: row.roles,
       emailVerified: row.email_verified,
+      tokenVersion: row.token_version,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       ...(row.profile ?? {}), // extra registration fields

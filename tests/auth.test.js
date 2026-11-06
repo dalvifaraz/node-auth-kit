@@ -101,7 +101,7 @@ describe('auth flow', () => {
       .post('/auth/change-password')
       .set('Authorization', `Bearer ${body.accessToken}`)
       .send({ currentPassword: creds.password, newPassword: 'changed999' })
-      .expect(204);
+      .expect(200);
     await request(app).post('/auth/refresh').send({ refreshToken: body.refreshToken }).expect(401);
   });
 });
@@ -216,6 +216,57 @@ describe('rate limiting', () => {
   it('can be turned off with rateLimit: false', async () => {
     const { app } = buildApp({ rateLimiter: undefined, rateLimit: false });
     for (let i = 0; i < 12; i++) await request(app).post('/auth/login').send(bad).expect(401);
+  });
+});
+
+describe('access token revocation', () => {
+  async function session(overrides) {
+    const adapter = memoryAdapter();
+    const ctx = buildApp({ adapter, ...overrides });
+    const { body } = await request(ctx.app).post('/auth/register').send(creds);
+    return { ...ctx, adapter, body };
+  }
+
+  it('rejects old access tokens after a password change and keeps the caller signed in', async () => {
+    const { app, body } = await session();
+    const res = await request(app).post('/auth/change-password').set(...bearer(body.accessToken))
+      .send({ currentPassword: creds.password, newPassword: 'changed999' }).expect(200);
+    await request(app).get('/private').set(...bearer(body.accessToken)).expect(401);
+    await request(app).get('/private').set(...bearer(res.body.accessToken)).expect(200);
+    await request(app).post('/auth/refresh').send({ refreshToken: res.body.refreshToken }).expect(200);
+    assert.equal(res.body.user.tokenVersion, undefined);
+  });
+
+  it('rejects old access tokens after logout-all', async () => {
+    const { app, body } = await session();
+    await request(app).post('/auth/logout-all').set(...bearer(body.accessToken)).expect(204);
+    await request(app).get('/private').set(...bearer(body.accessToken)).expect(401);
+  });
+
+  it('rejects old access tokens after a password reset', async () => {
+    const { app, sent, body } = await session();
+    await request(app).post('/auth/forgot-password').send({ email: creds.email });
+    await request(app).post('/auth/reset-password').send({ token: sent.reset.token, newPassword: 'changed999' }).expect(204);
+    await request(app).get('/private').set(...bearer(body.accessToken)).expect(401);
+  });
+
+  it('applies role changes to existing access tokens', async () => {
+    const { app, adapter, body } = await session();
+    await request(app).get('/admin').set(...bearer(body.accessToken)).expect(403);
+    await adapter.updateUser(body.user.id, { roles: ['admin'] });
+    await request(app).get('/admin').set(...bearer(body.accessToken)).expect(200);
+  });
+
+  it('rejects the token of a user who no longer exists', async () => {
+    const { app, auth } = buildApp();
+    const token = auth.tokens.signAccessToken({ id: 'gone', email: 'x@y.co' });
+    await request(app).get('/private').set(...bearer(token)).expect(401);
+  });
+
+  it('skips the database check with checkTokenVersion: false', async () => {
+    const { app, body } = await session({ checkTokenVersion: false });
+    await request(app).post('/auth/logout-all').set(...bearer(body.accessToken)).expect(204);
+    await request(app).get('/private').set(...bearer(body.accessToken)).expect(200);
   });
 });
 

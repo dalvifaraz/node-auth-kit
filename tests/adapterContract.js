@@ -50,6 +50,13 @@ export function runAdapterContract(name, makeAdapter) {
       assert.equal((await a.findUserById(u.id)).emailVerified, true);
     });
 
+    it('stores tokenVersion', async () => {
+      const a = await makeAdapter();
+      const u = await newUser(a, { tokenVersion: 0 });
+      await a.updateUser(u.id, { tokenVersion: 3 });
+      assert.equal((await a.findUserById(u.id)).tokenVersion, 3);
+    });
+
     it('stores, finds and deletes tokens', async () => {
       const a = await makeAdapter();
       const u = await newUser(a);
