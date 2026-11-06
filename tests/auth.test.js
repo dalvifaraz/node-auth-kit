@@ -270,6 +270,35 @@ describe('access token revocation', () => {
   });
 });
 
+describe('refresh token reuse', () => {
+  it('ends all sessions when a used token is replayed', async () => {
+    const { app } = buildApp({ refreshReuseGraceMs: 0 });
+    const { body } = await request(app).post('/auth/register').send(creds);
+    const { body: next } = await request(app).post('/auth/refresh').send({ refreshToken: body.refreshToken }).expect(200);
+    await request(app).post('/auth/refresh').send({ refreshToken: body.refreshToken }).expect(401);
+    await request(app).post('/auth/refresh').send({ refreshToken: next.refreshToken }).expect(401);
+    await request(app).get('/private').set(...bearer(next.accessToken)).expect(401);
+  });
+
+  it('leaves sessions alone for a replay within the grace period', async () => {
+    const { app } = buildApp();
+    const { body } = await request(app).post('/auth/register').send(creds);
+    const { body: next } = await request(app).post('/auth/refresh').send({ refreshToken: body.refreshToken }).expect(200);
+    await request(app).post('/auth/refresh').send({ refreshToken: body.refreshToken }).expect(401);
+    await request(app).post('/auth/refresh').send({ refreshToken: next.refreshToken }).expect(200);
+  });
+
+  it('does not treat a logged-out token as stolen', async () => {
+    const { app } = buildApp({ refreshReuseGraceMs: 0 });
+    await request(app).post('/auth/register').send(creds);
+    const { body: a } = await request(app).post('/auth/login').send(creds);
+    const { body: b } = await request(app).post('/auth/login').send(creds);
+    await request(app).post('/auth/logout').send({ refreshToken: a.refreshToken }).expect(204);
+    await request(app).post('/auth/refresh').send({ refreshToken: a.refreshToken }).expect(401);
+    await request(app).post('/auth/refresh').send({ refreshToken: b.refreshToken }).expect(200);
+  });
+});
+
 describe('configuration', () => {
   it('fails fast on a bad adapter or weak secret', () => {
     assert.throws(() => createAuth({ adapter: {}, jwtSecret: 'x'.repeat(32) }), /missing methods/);

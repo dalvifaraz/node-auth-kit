@@ -73,7 +73,7 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
 
   /** Refresh token rotation: the old token is consumed, a new pair issued. */
   async function refresh(refreshToken, meta = {}) {
-    const record = await tokens.consumeOpaqueToken(refreshToken, TOKEN_TYPES.REFRESH);
+    const record = await tokens.consumeRefreshToken(refreshToken, revokeSessions);
     const user = await adapter.findUserById(record.userId);
     if (!user) throw Errors.invalidToken();
     assertVerified(user);
@@ -91,6 +91,7 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
     const tokenVersion = (user.tokenVersion ?? 0) + 1;
     await adapter.updateUser(user.id, { tokenVersion, updatedAt: new Date() });
     await tokens.revokeAllForUser(user.id);
+    await tokens.revokeAllForUser(user.id, TOKEN_TYPES.REFRESH_USED);
     return { ...user, tokenVersion };
   }
 

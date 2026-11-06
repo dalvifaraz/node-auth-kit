@@ -40,6 +40,7 @@ export function createAuth(options = {}) {
     jwtSecret: options.jwtSecret,
     accessTokenTtl: options.accessTokenTtl ?? '15m',
     refreshTokenTtlMs: options.refreshTokenTtlMs ?? 30 * DAY,
+    refreshReuseGraceMs: options.refreshReuseGraceMs ?? 10 * 1000,
     resetTokenTtlMs: options.resetTokenTtlMs ?? 60 * 60 * 1000,
     verifyTokenTtlMs: options.verifyTokenTtlMs ?? 2 * DAY,
     issuer: options.issuer ?? 'node-auth-kit',
