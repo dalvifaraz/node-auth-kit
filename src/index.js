@@ -8,10 +8,11 @@ import { AuthError } from './utils/errors.js';
 
 const REQUIRED_ADAPTER_METHODS = [
   'createUser', 'findUserByEmail', 'findUserById', 'updateUser',
-  'saveToken', 'findToken', 'consumeToken', 'deleteToken', 'deleteUserTokens',
+  'saveToken', 'findToken', 'consumeToken', 'deleteToken', 'deleteUserTokens', 'deleteExpiredTokens',
 ];
 
-const DAY = 24 * 60 * 60 * 1000;
+const HOUR = 60 * 60 * 1000;
+const DAY = 24 * HOUR;
 
 /**
  * Build a complete auth module.
@@ -63,6 +64,13 @@ export function createAuth(options = {}) {
   }
   if (!hooks.sendPasswordResetEmail) {
     console.warn('[auth] no sendPasswordResetEmail hook: forgot-password will not send anything');
+  }
+
+  const cleanupIntervalMs = options.tokenCleanupIntervalMs ?? HOUR;
+  if (cleanupIntervalMs) {
+    setInterval(() => {
+      adapter.deleteExpiredTokens().catch((err) => console.error('[auth] token cleanup failed:', err));
+    }, cleanupIntervalMs).unref();
   }
 
   const tokens = createTokenService({ adapter, config });

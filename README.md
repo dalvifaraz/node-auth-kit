@@ -18,7 +18,7 @@ Write it once, drop it into every new project, and switch the database by swappi
 ┌──────────────────▼──────────────────┐
 │ routes  →  authService  →  tokenSvc │   ← never changes between projects
 └──────────────────┬──────────────────┘
-                   │  9-method adapter contract
+                   │  10-method adapter contract
      ┌─────────────┼──────────────┐
   memory        mongo          postgres   (or your own: MySQL, Prisma, DynamoDB…)
 ```
@@ -82,7 +82,7 @@ npm install github:<your-username>/node-auth-kit#v1.0.0
 | In-memory (tests) | — | `memoryAdapter()` |
 | MongoDB | `npm i mongodb` | `mongoAdapter({ db })` |
 | PostgreSQL | `npm i pg` | `postgresAdapter({ pool })` |
-| Anything else | your driver | implement the 9 methods in [`src/adapters/README.md`](src/adapters/README.md) |
+| Anything else | your driver | implement the 10 methods in [`src/adapters/README.md`](src/adapters/README.md) |
 
 Then prove your adapter works with the shared contract tests:
 
@@ -121,6 +121,7 @@ Errors are always `{ error: { code, message } }`.
 | `refreshTokenTtlMs` | 30 days | |
 | `refreshReuseGraceMs` | 10 seconds | replaying a used refresh token after this long ends all of the user's sessions |
 | `resetTokenTtlMs` | 1 hour | |
+| `tokenCleanupIntervalMs` | 1 hour | how often expired tokens are deleted; `false` to schedule `adapter.deleteExpiredTokens()` yourself |
 | `bcryptRounds` | `12` | |
 | `checkTokenVersion` | `true` | check each access token against the database, so revocation and role changes apply at once; `false` skips that lookup, and access tokens then stay valid until they expire |
 | `defaultRoles` | `['user']` | |

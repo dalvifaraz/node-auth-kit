@@ -72,6 +72,9 @@ export function mongoAdapter({ db, usersCollection = 'users', tokensCollection =
     async deleteToken(tokenHash) {
       await tokens.deleteOne({ tokenHash });
     },
+    async deleteExpiredTokens() {
+      await tokens.deleteMany({ expiresAt: { $lt: new Date() } });
+    },
     async deleteUserTokens(userId, type) {
       await tokens.deleteMany({ userId: String(userId), type });
     },
