@@ -57,7 +57,9 @@ export function createAuth(options = {}) {
   const service = createAuthService({ adapter, tokens, config, hooks });
   const authenticate = createAuthenticate(tokens);
   const rateLimiter =
-    options.rateLimiter === false ? null : options.rateLimiter ?? createRateLimiter(options.rateLimit);
+    options.rateLimiter === false || options.rateLimit === false
+      ? null
+      : options.rateLimiter ?? createRateLimiter(options.rateLimit);
   const router = createAuthRouter({ service, authenticate, rateLimiter });
 
   /** Mount in your app after your routes so `authenticate` errors return JSON. */

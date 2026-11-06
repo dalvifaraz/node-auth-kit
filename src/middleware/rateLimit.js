@@ -13,7 +13,9 @@ export function createRateLimiter({ windowMs = 15 * 60 * 1000, max = 10 } = {}) 
   }, windowMs).unref();
 
   return function rateLimit(req, res, next) {
-    const key = `${req.ip}:${req.baseUrl}${req.path}`;
+    // The matched route, not the typed path: /login, /login/ and /LOGIN must share a counter.
+    const route = req.route?.path ?? req.path.toLowerCase().replace(/\/+$/, '');
+    const key = `${req.ip}:${route}`;
     const now = Date.now();
     const entry = hits.get(key);
     if (!entry || entry.reset < now) {

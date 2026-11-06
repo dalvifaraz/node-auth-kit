@@ -191,6 +191,34 @@ describe('public user fields', () => {
   });
 });
 
+describe('rate limiting', () => {
+  const bad = { email: creds.email, password: 'wrong1234' };
+  const limited = (max) => buildApp({ rateLimiter: undefined, rateLimit: { max, windowMs: 60000 } }).app;
+
+  it('counts path variants of a route together', async () => {
+    const app = limited(2);
+    await request(app).post('/auth/login').send(bad).expect(401);
+    await request(app).post('/auth/login').send(bad).expect(401);
+    for (const path of ['/auth/login', '/auth/login/', '/auth/LOGIN', '/AUTH/Login']) {
+      await request(app).post(path).send(bad).expect(429);
+    }
+  });
+
+  it('limits change-password', async () => {
+    const app = limited(1);
+    const { body } = await request(app).post('/auth/register').send(creds);
+    const attempt = () => request(app).post('/auth/change-password').set(...bearer(body.accessToken))
+      .send({ currentPassword: 'wrong1234', newPassword: 'changed999' });
+    await attempt().expect(401);
+    await attempt().expect(429);
+  });
+
+  it('can be turned off with rateLimit: false', async () => {
+    const { app } = buildApp({ rateLimiter: undefined, rateLimit: false });
+    for (let i = 0; i < 12; i++) await request(app).post('/auth/login').send(bad).expect(401);
+  });
+});
+
 describe('configuration', () => {
   it('fails fast on a bad adapter or weak secret', () => {
     assert.throws(() => createAuth({ adapter: {}, jwtSecret: 'x'.repeat(32) }), /missing methods/);

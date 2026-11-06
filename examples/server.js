@@ -48,7 +48,8 @@ const auth = createAuth({
 });
 
 const app = express();
-app.set('trust proxy', 1); // correct req.ip behind a proxy/load balancer
+// Only when behind a proxy: otherwise clients can fake their IP and dodge rate limits.
+if (process.env.TRUST_PROXY) app.set('trust proxy', Number(process.env.TRUST_PROXY));
 
 app.use('/api/auth', auth.router);
 
