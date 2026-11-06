@@ -47,6 +47,7 @@ export function createAuth(options = {}) {
     bcryptRounds: options.bcryptRounds ?? 12,
     defaultRoles: options.defaultRoles ?? ['user'],
     allowedRegisterFields: options.allowedRegisterFields ?? [], // extra fields accepted on /register
+    publicUserFields: options.publicUserFields ?? [], // extra user fields returned to clients
     passwordPolicy: options.passwordPolicy ?? defaultPasswordPolicy,
     emailVerification: options.emailVerification ?? options.requireVerifiedEmail ?? false,
     requireVerifiedEmail: options.requireVerifiedEmail ?? false,

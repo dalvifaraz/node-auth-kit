@@ -122,6 +122,7 @@ Errors are always `{ error: { code, message } }`.
 | `bcryptRounds` | `12` | |
 | `defaultRoles` | `['user']` | |
 | `allowedRegisterFields` | `[]` | extra fields accepted at register (e.g. `['phone']`) |
+| `publicUserFields` | `[]` | extra user fields returned to clients; everything else stays private |
 | `passwordPolicy` | 8+ chars, letter + number | `(pw) => errorMessage \| null` |
 | `emailVerification` | `false` | send a verification email at register |
 | `requireVerifiedEmail` | `false` | also block tokens until verified; turns `emailVerification` on |

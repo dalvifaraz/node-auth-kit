@@ -177,6 +177,20 @@ describe('password length', () => {
   });
 });
 
+describe('public user fields', () => {
+  it('returns allowlisted fields and hides everything else', async () => {
+    const adapter = memoryAdapter();
+    const { app } = buildApp({ adapter, allowedRegisterFields: ['phone'], publicUserFields: ['plan', 'passwordHash'] });
+    const { body } = await request(app).post('/auth/register').send({ ...creds, phone: '123' });
+    await adapter.updateUser(body.user.id, { totpSecret: 'SECRET', plan: 'pro' });
+    const { body: me } = await request(app).get('/auth/me').set(...bearer(body.accessToken));
+    assert.equal(me.user.phone, '123');
+    assert.equal(me.user.plan, 'pro');
+    assert.equal(me.user.totpSecret, undefined);
+    assert.equal(me.user.passwordHash, undefined);
+  });
+});
+
 describe('configuration', () => {
   it('fails fast on a bad adapter or weak secret', () => {
     assert.throws(() => createAuth({ adapter: {}, jwtSecret: 'x'.repeat(32) }), /missing methods/);
