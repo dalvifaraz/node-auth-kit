@@ -3,17 +3,20 @@ import { normalizeEmail } from '../utils/validate.js';
 import { Errors } from '../utils/errors.js';
 import { TOKEN_TYPES } from './tokenService.js';
 
-/** Strip sensitive fields before returning a user to the client. */
-export const toPublicUser = (user) => {
-  if (!user) return null;
-  const { passwordHash, ...rest } = user;
-  return { ...rest, id: String(user.id) };
-};
+const PUBLIC_FIELDS = ['id', 'email', 'name', 'roles', 'emailVerified', 'createdAt', 'updatedAt'];
+const PRIVATE_FIELDS = ['passwordHash'];
 
 const isTooLong = (password) => Buffer.byteLength(password) > MAX_PASSWORD_BYTES;
 
 export function createAuthService({ adapter, tokens, config, hooks }) {
   let dummyHash; // lazily created; used when the email doesn't exist
+
+  const publicFields = [...PUBLIC_FIELDS, ...config.allowedRegisterFields, ...config.publicUserFields]
+    .filter((field) => !PRIVATE_FIELDS.includes(field));
+
+  /** Only allowlisted fields ever reach the client. */
+  const toPublicUser = (user) => (user ? { ...pick(user, publicFields), id: String(user.id) } : null);
+
   const checkPassword = (password) => {
     const problem = config.passwordPolicy(password);
     if (problem) throw Errors.validation(problem);
