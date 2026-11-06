@@ -8,7 +8,7 @@ export function createAuthenticate(tokens, adapter = null) {
   return async function authenticate(req, _res, next) {
     const header = req.headers.authorization ?? '';
     const [scheme, token] = header.split(' ');
-    if (scheme !== 'Bearer' || !token) return next(Errors.unauthorized('Missing bearer token'));
+    if (scheme?.toLowerCase() !== 'bearer' || !token) return next(Errors.unauthorized('Missing bearer token'));
     try {
       const payload = tokens.verifyAccessToken(token);
       let roles = payload.roles ?? [];

@@ -63,6 +63,12 @@ export function createAuthRouter({ service, authenticate, rateLimiter }) {
     if (err?.type === 'entity.parse.failed') {
       return res.status(400).json({ error: { code: 'BAD_JSON', message: 'Malformed JSON body' } });
     }
+    if (err?.type === 'entity.too.large') {
+      return res.status(413).json({ error: { code: 'PAYLOAD_TOO_LARGE', message: 'Request body is too large' } });
+    }
+    if (err?.status >= 400 && err?.status < 500) {
+      return res.status(err.status).json({ error: { code: 'BAD_REQUEST', message: 'Invalid request' } });
+    }
     console.error('[auth] unexpected error:', err);
     res.status(500).json({ error: { code: 'INTERNAL', message: 'Internal server error' } });
   });

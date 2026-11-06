@@ -1,5 +1,5 @@
 import { hashPassword, verifyPassword, MAX_PASSWORD_BYTES } from '../utils/crypto.js';
-import { normalizeEmail } from '../utils/validate.js';
+import { normalizeEmail, checkName } from '../utils/validate.js';
 import { Errors } from '../utils/errors.js';
 import { TOKEN_TYPES } from './tokenService.js';
 
@@ -33,6 +33,7 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
   async function register({ email, password, name, ...extra }) {
     const normalized = normalizeEmail(email);
     checkPassword(password);
+    checkName(name);
 
     if (await adapter.findUserByEmail(normalized)) throw Errors.emailTaken();
 
@@ -81,7 +82,7 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
   }
 
   async function logout(refreshToken) {
-    if (refreshToken) await tokens.revokeRefreshToken(refreshToken);
+    if (refreshToken && typeof refreshToken === 'string') await tokens.revokeRefreshToken(refreshToken);
   }
 
   /** Ends every session: refresh tokens are deleted and existing access tokens stop working. */
@@ -108,7 +109,8 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
   async function changePassword(userId, { currentPassword, newPassword }) {
     const user = await adapter.findUserById(userId);
     if (!user) throw Errors.notFound('User not found');
-    if (!(await verifyPassword(currentPassword ?? '', user.passwordHash))) {
+    const candidate = typeof currentPassword === 'string' ? currentPassword : '';
+    if (!(await verifyPassword(candidate, user.passwordHash))) {
       throw Errors.invalidCredentials();
     }
     checkPassword(newPassword);
