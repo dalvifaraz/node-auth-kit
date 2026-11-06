@@ -328,6 +328,45 @@ describe('forgot-password privacy', () => {
   });
 });
 
+describe('invalid input', () => {
+  it('ignores a non-string refresh token on logout', async () => {
+    const { app } = buildApp();
+    await request(app).post('/auth/logout').send({ refreshToken: 123 }).expect(204);
+  });
+
+  it('treats a non-string current password as wrong', async () => {
+    const { app } = buildApp();
+    const { body } = await request(app).post('/auth/register').send(creds);
+    await request(app).post('/auth/change-password').set(...bearer(body.accessToken))
+      .send({ currentPassword: 123, newPassword: 'changed999' }).expect(401);
+  });
+
+  it('rejects a name that is not short text', async () => {
+    const { app } = buildApp();
+    await request(app).post('/auth/register').send({ ...creds, name: { $gt: '' } }).expect(400);
+    await request(app).post('/auth/register').send({ ...creds, name: 'x'.repeat(101) }).expect(400);
+  });
+
+  it('rejects an over-long email', async () => {
+    const { app } = buildApp();
+    await request(app).post('/auth/login').send({ email: 'a'.repeat(250) + '@b.co', password: 'x' }).expect(400);
+  });
+
+  it('reports bad bodies as client errors', async () => {
+    const { app } = buildApp();
+    const big = await request(app).post('/auth/login').send({ email: 'x'.repeat(20000) }).expect(413);
+    assert.equal(big.body.error.code, 'PAYLOAD_TOO_LARGE');
+    const bad = await request(app).post('/auth/login').set('Content-Type', 'application/json').send('{oops').expect(400);
+    assert.equal(bad.body.error.code, 'BAD_JSON');
+  });
+
+  it('accepts the bearer scheme in any case', async () => {
+    const { app } = buildApp();
+    const { body } = await request(app).post('/auth/register').send(creds);
+    await request(app).get('/private').set('Authorization', 'bearer ' + body.accessToken).expect(200);
+  });
+});
+
 describe('configuration', () => {
   it('fails fast on a bad adapter or weak secret', () => {
     assert.throws(() => createAuth({ adapter: {}, jwtSecret: 'x'.repeat(32) }), /missing methods/);
