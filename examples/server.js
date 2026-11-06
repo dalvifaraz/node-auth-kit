@@ -1,10 +1,10 @@
 /**
- * Example app. Pick the database with DB_DRIVER=memory | mongo | postgres in .env
+ * Example app, configured through .env (see .env.example).
  *   npm start
  */
 import 'dotenv/config';
 import express from 'express';
-import { createAuth } from '../src/index.js';
+import { createAuth, emailConfigFromEnv } from '../src/index.js';
 
 async function buildAdapter() {
   switch (process.env.DB_DRIVER ?? 'memory') {
@@ -33,19 +33,30 @@ async function buildAdapter() {
   }
 }
 
+const email = emailConfigFromEnv();
+
+// Without SMTP settings, print the links instead of sending them.
+const consoleEmail = {
+  sendPasswordResetEmail: async ({ user, token }) =>
+    console.log(`[email] reset link for ${user.email}: ${process.env.APP_URL}/reset-password?token=${token}`),
+  sendVerificationEmail: async ({ user, token }) =>
+    console.log(`[email] verify link for ${user.email}: ${process.env.APP_URL}/verify-email?token=${token}`),
+};
+
 const auth = createAuth({
   adapter: await buildAdapter(),
   jwtSecret: process.env.JWT_SECRET,
   accessTokenTtl: process.env.ACCESS_TOKEN_TTL ?? '15m',
   allowedRegisterFields: ['phone'],
-  hooks: {
-    // Plug in your email provider (SES, SendGrid, Resend, Nodemailer...)
-    sendPasswordResetEmail: async ({ user, token }) =>
-      console.log(`[email] reset link for ${user.email}: ${process.env.APP_URL}/reset?token=${token}`),
-    sendVerificationEmail: async ({ user, token }) =>
-      console.log(`[email] verify link for ${user.email}: ${process.env.APP_URL}/verify?token=${token}`),
-  },
+  email,
+  hooks: email ? {} : consoleEmail,
+  cookie: process.env.COOKIE_LOGIN === 'true' ? { secure: process.env.COOKIE_SECURE !== 'false' } : undefined,
 });
+
+if (process.env.ADMIN_EMAIL) {
+  await auth.service.addRoleByEmail(process.env.ADMIN_EMAIL, 'admin')
+    .catch(() => console.warn(`[example] ${process.env.ADMIN_EMAIL} has not registered yet`));
+}
 
 const app = express();
 // Only when behind a proxy: otherwise clients can fake their IP and dodge rate limits.

@@ -22,11 +22,13 @@ const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
 
 /**
- * Build a complete auth module.
+ * Build a complete auth module. The README lists every option.
  *
  * @param {object}  options
  * @param {object}  options.adapter        Database adapter (see src/adapters/README.md)
  * @param {string}  options.jwtSecret      Secret for signing access tokens (min 32 chars)
+ * @param {object} [options.email]         Built-in email settings (see src/services/mailer.js)
+ * @param {object|boolean} [options.cookie] Cookie login settings (see src/middleware/sessionCookie.js)
  * @param {object} [options.hooks]         { sendPasswordResetEmail, sendVerificationEmail, onRegister, onLogin }
  * @returns {{ router, authenticate, requireRoles, service, tokens, errorHandler }}
  */
