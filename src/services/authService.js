@@ -3,7 +3,7 @@ import { normalizeEmail, checkName } from '../utils/validate.js';
 import { Errors } from '../utils/errors.js';
 import { TOKEN_TYPES } from './tokenService.js';
 
-const PUBLIC_FIELDS = ['id', 'email', 'name', 'roles', 'emailVerified', 'createdAt', 'updatedAt'];
+const PUBLIC_FIELDS = ['id', 'email', 'name', 'roles', 'emailVerified', 'disabled', 'createdAt', 'updatedAt'];
 const PRIVATE_FIELDS = ['passwordHash', 'tokenVersion'];
 
 const isTooLong = (password) => Buffer.byteLength(password) > MAX_PASSWORD_BYTES;
@@ -24,7 +24,8 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
     if (isTooLong(password)) throw Errors.validation(`Password must be at most ${MAX_PASSWORD_BYTES} bytes`);
   };
 
-  const assertVerified = (user) => {
+  const assertCanSignIn = (user) => {
+    if (user.disabled) throw Errors.accountDisabled();
     if (config.requireVerifiedEmail && !user.emailVerified) {
       throw Errors.forbidden('Please verify your email before logging in');
     }
@@ -58,6 +59,7 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
       roles: [...config.defaultRoles],
       emailVerified: false,
       tokenVersion: 0,
+      disabled: false,
       ...pick(extra, config.allowedRegisterFields),
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -78,7 +80,7 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
     const candidate = typeof password === 'string' ? password : '';
     const ok = await verifyPassword(candidate, user?.passwordHash ?? (await dummyHash));
     if (!user || !ok || isTooLong(candidate)) throw Errors.invalidCredentials();
-    assertVerified(user);
+    assertCanSignIn(user);
     await runHook('onLogin', toPublicUser(user), meta);
     return { user: toPublicUser(user), ...(await tokens.issueTokenPair(user, meta)) };
   }
@@ -88,7 +90,7 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
     const record = await tokens.consumeRefreshToken(refreshToken, revokeSessions);
     const user = await adapter.findUserById(record.userId);
     if (!user) throw Errors.invalidToken();
-    assertVerified(user);
+    assertCanSignIn(user);
     return { user: toPublicUser(user), ...(await tokens.issueTokenPair(user, meta)) };
   }
 
@@ -142,7 +144,7 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
 
   async function sendResetEmail(email) {
     const user = await adapter.findUserByEmail(email);
-    if (!user) return;
+    if (!user || user.disabled) return;
     await tokens.revokeAllForUser(user.id, TOKEN_TYPES.PASSWORD_RESET);
     const token = await tokens.issueOpaqueToken(user.id, TOKEN_TYPES.PASSWORD_RESET, config.resetTokenTtlMs);
     await hooks.sendPasswordResetEmail?.({ user: toPublicUser(user), token });
@@ -168,7 +170,7 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
   async function replaceVerificationEmail(email) {
     if (!config.emailVerification) return;
     const user = await adapter.findUserByEmail(email);
-    if (!user || user.emailVerified) return;
+    if (!user || user.disabled || user.emailVerified) return;
     await tokens.revokeAllForUser(user.id, TOKEN_TYPES.EMAIL_VERIFY);
     await sendVerificationEmail(user);
   }
@@ -178,9 +180,19 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
     await adapter.updateUser(record.userId, { emailVerified: true, updatedAt: new Date() });
   }
 
+  async function setDisabled(userId, disabled, { actorId } = {}) {
+    if (disabled && String(userId) === String(actorId)) throw Errors.validation('You cannot disable your own account');
+    const user = await adapter.findUserById(userId);
+    if (!user) throw Errors.notFound('User not found');
+    await adapter.updateUser(user.id, { disabled: Boolean(disabled), updatedAt: new Date() });
+    if (disabled) await revokeSessions(user.id);
+    return toPublicUser(await adapter.findUserById(user.id));
+  }
+
   return {
     register, login, refresh, logout, logoutAll, me,
     changePassword, forgotPassword, resetPassword, verifyEmail, resendVerification,
+    setDisabled,
   };
 }
 

@@ -447,6 +447,42 @@ describe('password reset links', () => {
   });
 });
 
+describe('disabled accounts', () => {
+  async function disabledUser() {
+    const ctx = buildApp();
+    const { body } = await request(ctx.app).post('/auth/register').send(creds);
+    await ctx.auth.service.setDisabled(body.user.id, true);
+    return { ...ctx, body };
+  }
+
+  it('blocks login, and only says so after the right password', async () => {
+    const { app } = await disabledUser();
+    const res = await request(app).post('/auth/login').send(creds).expect(403);
+    assert.equal(res.body.error.code, 'ACCOUNT_DISABLED');
+    await request(app).post('/auth/login').send({ ...creds, password: 'wrong1234' }).expect(401);
+  });
+
+  it('ends existing sessions at once', async () => {
+    const { app, body } = await disabledUser();
+    await request(app).get('/private').set(...bearer(body.accessToken)).expect(401);
+    await request(app).post('/auth/refresh').send({ refreshToken: body.refreshToken }).expect(401);
+  });
+
+  it('sends no reset email', async () => {
+    const { app, sent } = await disabledUser();
+    await request(app).post('/auth/forgot-password').send({ email: creds.email }).expect(200);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(sent.reset, undefined);
+  });
+
+  it('can be re-enabled', async () => {
+    const { app, auth, body } = await disabledUser();
+    const user = await auth.service.setDisabled(body.user.id, false);
+    assert.equal(user.disabled, false);
+    await request(app).post('/auth/login').send(creds).expect(200);
+  });
+});
+
 describe('configuration', () => {
   it('fails fast on a bad adapter or weak secret', () => {
     assert.throws(() => createAuth({ adapter: {}, jwtSecret: 'x'.repeat(32) }), /missing methods/);

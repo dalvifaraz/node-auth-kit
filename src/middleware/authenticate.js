@@ -14,7 +14,7 @@ export function createAuthenticate(tokens, adapter = null) {
       let roles = payload.roles ?? [];
       if (adapter) {
         const user = await adapter.findUserById(payload.sub);
-        if (!user || (user.tokenVersion ?? 0) !== (payload.tv ?? 0)) throw Errors.invalidToken();
+        if (!user || user.disabled || (user.tokenVersion ?? 0) !== (payload.tv ?? 0)) throw Errors.invalidToken();
         roles = user.roles ?? [];
       }
       req.auth = { userId: payload.sub, email: payload.email, roles };
