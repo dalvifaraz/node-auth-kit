@@ -367,6 +367,51 @@ describe('invalid input', () => {
   });
 });
 
+describe('email and hook failures', () => {
+  const boom = async () => { throw new Error('smtp down'); };
+  const tick = () => new Promise((resolve) => setImmediate(resolve));
+  const quietly = async (fn) => {
+    const original = console.error;
+    console.error = () => {};
+    try { await fn(); } finally { console.error = original; }
+  };
+
+  it('still registers and logs in when hooks fail', () => quietly(async () => {
+    const hooks = { sendVerificationEmail: boom, sendPasswordResetEmail: boom, onRegister: boom, onLogin: boom };
+    const { app } = buildApp({ hooks, emailVerification: true });
+    await request(app).post('/auth/register').send(creds).expect(201);
+    await request(app).post('/auth/login').send(creds).expect(200);
+  }));
+
+  it('replaces the verification link on resend', async () => {
+    const { app, sent } = buildApp({ requireVerifiedEmail: true });
+    await request(app).post('/auth/register').send(creds);
+    const first = sent.verify.token;
+    await request(app).post('/auth/resend-verification').send({ email: creds.email }).expect(200);
+    await tick();
+    assert.notEqual(sent.verify.token, first);
+    await request(app).post('/auth/verify-email').send({ token: first }).expect(401);
+    await request(app).post('/auth/verify-email').send({ token: sent.verify.token }).expect(204);
+    await request(app).post('/auth/login').send(creds).expect(200);
+  });
+
+  it('responds the same for unknown and verified accounts, and sends nothing', async () => {
+    const { app, sent } = buildApp({ emailVerification: true });
+    await request(app).post('/auth/register').send(creds);
+    await request(app).post('/auth/verify-email').send({ token: sent.verify.token }).expect(204);
+    const last = sent.verify.token;
+    const verified = await request(app).post('/auth/resend-verification').send({ email: creds.email }).expect(200);
+    const unknown = await request(app).post('/auth/resend-verification').send({ email: 'ghost@x.com' }).expect(200);
+    await tick();
+    assert.deepEqual(verified.body, unknown.body);
+    assert.equal(sent.verify.token, last);
+  });
+
+  it('requires the verification hook at startup', () => {
+    assert.throws(() => buildApp({ emailVerification: true, hooks: { sendPasswordResetEmail: boom } }), /sendVerificationEmail/);
+  });
+});
+
 describe('configuration', () => {
   it('fails fast on a bad adapter or weak secret', () => {
     assert.throws(() => createAuth({ adapter: {}, jwtSecret: 'x'.repeat(32) }), /missing methods/);

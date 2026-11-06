@@ -55,6 +55,13 @@ export function createAuth(options = {}) {
     requireVerifiedEmail: options.requireVerifiedEmail ?? false,
   };
 
+  if (config.emailVerification && !hooks.sendVerificationEmail) {
+    throw new Error('createAuth: `emailVerification` needs a `sendVerificationEmail` hook');
+  }
+  if (!hooks.sendPasswordResetEmail) {
+    console.warn('[auth] no sendPasswordResetEmail hook: forgot-password will not send anything');
+  }
+
   const tokens = createTokenService({ adapter, config });
   const service = createAuthService({ adapter, tokens, config, hooks });
   const authenticate = createAuthenticate(tokens, config.checkTokenVersion ? adapter : null);

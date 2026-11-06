@@ -30,6 +30,20 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
     }
   };
 
+  /** A failing hook is logged, never allowed to break the request that triggered it. */
+  const runHook = async (name, ...args) => {
+    try {
+      await hooks[name]?.(...args);
+    } catch (err) {
+      console.error(`[auth] ${name} hook failed:`, err);
+    }
+  };
+
+  async function sendVerificationEmail(user) {
+    const token = await tokens.issueOpaqueToken(user.id, TOKEN_TYPES.EMAIL_VERIFY, config.verifyTokenTtlMs);
+    await runHook('sendVerificationEmail', { user: toPublicUser(user), token });
+  }
+
   async function register({ email, password, name, ...extra }) {
     const normalized = normalizeEmail(email);
     checkPassword(password);
@@ -49,11 +63,8 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
       updatedAt: new Date(),
     });
 
-    if (config.emailVerification) {
-      const token = await tokens.issueOpaqueToken(user.id, TOKEN_TYPES.EMAIL_VERIFY, config.verifyTokenTtlMs);
-      await hooks.sendVerificationEmail?.({ user: toPublicUser(user), token });
-    }
-    await hooks.onRegister?.(toPublicUser(user));
+    if (config.emailVerification) await sendVerificationEmail(user);
+    await runHook('onRegister', toPublicUser(user));
 
     if (config.requireVerifiedEmail) return { user: toPublicUser(user) };
     return { user: toPublicUser(user), ...(await tokens.issueTokenPair(user)) };
@@ -68,7 +79,7 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
     const ok = await verifyPassword(candidate, user?.passwordHash ?? (await dummyHash));
     if (!user || !ok || isTooLong(candidate)) throw Errors.invalidCredentials();
     assertVerified(user);
-    await hooks.onLogin?.(toPublicUser(user), meta);
+    await runHook('onLogin', toPublicUser(user), meta);
     return { user: toPublicUser(user), ...(await tokens.issueTokenPair(user, meta)) };
   }
 
@@ -146,6 +157,20 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
     await revokeSessions(record.userId);
   }
 
+  /** Runs after the response, like forgotPassword, so it can't reveal which emails are registered. */
+  async function resendVerification({ email }) {
+    const normalized = normalizeEmail(email);
+    replaceVerificationEmail(normalized).catch((err) => console.error('[auth] verification email failed:', err));
+  }
+
+  async function replaceVerificationEmail(email) {
+    if (!config.emailVerification) return;
+    const user = await adapter.findUserByEmail(email);
+    if (!user || user.emailVerified) return;
+    await tokens.revokeAllForUser(user.id, TOKEN_TYPES.EMAIL_VERIFY);
+    await sendVerificationEmail(user);
+  }
+
   async function verifyEmail({ token }) {
     const record = await tokens.consumeOpaqueToken(token, TOKEN_TYPES.EMAIL_VERIFY);
     await adapter.updateUser(record.userId, { emailVerified: true, updatedAt: new Date() });
@@ -153,7 +178,7 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
 
   return {
     register, login, refresh, logout, logoutAll, me,
-    changePassword, forgotPassword, resetPassword, verifyEmail,
+    changePassword, forgotPassword, resetPassword, verifyEmail, resendVerification,
   };
 }
 
