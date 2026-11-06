@@ -8,6 +8,9 @@
  *
  * Works with any Postgres-compatible DB (Supabase, Neon, RDS, CockroachDB*).
  */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isUuid = (id) => UUID_RE.test(String(id));
+
 const COLUMNS = {
   email: 'email',
   passwordHash: 'password_hash',
@@ -58,7 +61,7 @@ export function postgresAdapter({ pool }) {
     };
   };
   const mapToken = (row) =>
-    row && { tokenHash: row.token_hash, userId: row.user_id, type: row.type, expiresAt: row.expires_at, meta: row.meta };
+    row ? { tokenHash: row.token_hash, userId: row.user_id, type: row.type, expiresAt: row.expires_at, meta: row.meta } : null;
 
   // Split known columns from extra fields (stored in `profile` JSONB).
   const split = (fields) => {
@@ -69,7 +72,6 @@ export function postgresAdapter({ pool }) {
 
   return {
     async init() {
-      await q('CREATE EXTENSION IF NOT EXISTS pgcrypto');
       await q(POSTGRES_SCHEMA);
     },
     async createUser(data) {
@@ -85,10 +87,12 @@ export function postgresAdapter({ pool }) {
       return mapUser(rows[0]);
     },
     async findUserById(id) {
-      const { rows } = await q('SELECT * FROM auth_users WHERE id::text = $1', [String(id)]);
+      if (!isUuid(id)) return null;
+      const { rows } = await q('SELECT * FROM auth_users WHERE id = $1::uuid', [String(id)]);
       return mapUser(rows[0]);
     },
     async updateUser(id, fields) {
+      if (!isUuid(id)) return null;
       const { cols, profile } = split(fields);
       const sets = Object.keys(cols).map((k, i) => `${COLUMNS[k]} = $${i + 2}`);
       const params = [String(id), ...Object.values(cols)];
@@ -97,7 +101,7 @@ export function postgresAdapter({ pool }) {
         sets.push(`profile = profile || $${params.length}::jsonb`);
       }
       if (!sets.length) return this.findUserById(id);
-      const { rows } = await q(`UPDATE auth_users SET ${sets.join(', ')} WHERE id::text = $1 RETURNING *`, params);
+      const { rows } = await q(`UPDATE auth_users SET ${sets.join(', ')} WHERE id = $1::uuid RETURNING *`, params);
       return mapUser(rows[0]);
     },
     async saveToken({ userId, tokenHash, type, expiresAt, meta = {} }) {
@@ -113,7 +117,8 @@ export function postgresAdapter({ pool }) {
       await q('DELETE FROM auth_tokens WHERE token_hash = $1', [tokenHash]);
     },
     async deleteUserTokens(userId, type) {
-      await q('DELETE FROM auth_tokens WHERE user_id::text = $1 AND type = $2', [String(userId), type]);
+      if (!isUuid(userId)) return;
+      await q('DELETE FROM auth_tokens WHERE user_id = $1::uuid AND type = $2', [String(userId), type]);
     },
   };
 }

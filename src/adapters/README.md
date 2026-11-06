@@ -17,6 +17,7 @@ that implements these 8 async methods and pass it to `createAuth({ adapter })`.
 
 Rules:
 - `email` must be unique (add a unique index).
+- Lookups by an id that is malformed for your database must return `null`, not throw.
 - Users must expose `id` (string-able). Mongo's `_id` is mapped to `id` in `mongoAdapter.js`.
 - `tokenHash` should be indexed/unique. Expired tokens can be cleaned up by a TTL index or a cron job.
 - Optional: `init()` — create tables/indexes. Called by you, not by the core.
