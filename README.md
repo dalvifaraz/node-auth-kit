@@ -105,6 +105,7 @@ runAdapterContract('mysql', () => mysqlAdapter({ pool }));
 | POST | `/forgot-password` | `{ email }` | — |
 | POST | `/reset-password` | `{ token, newPassword }` | — |
 | POST | `/verify-email` | `{ token }` | — |
+| POST | `/resend-verification` | `{ email }` | — |
 
 Login/register/refresh return `{ user, accessToken, refreshToken, tokenType, expiresIn }`.
 With `requireVerifiedEmail`, register returns only `{ user }`.
@@ -135,6 +136,7 @@ Errors are always `{ error: { code, message } }`.
 
 - Keep `JWT_SECRET` out of git (`.env` is ignored). Use a different secret per project.
 - `/register` does return 409 for a taken email, so it can show that an account exists. The rate limit slows bulk checks.
+- A failing hook is logged and never fails the request, so hooks cannot be used to block a login.
 - `sendPasswordResetEmail` runs after the response is sent, so failures are logged rather than returned. Platforms that freeze the process after responding, such as some serverless hosts, may need a queue.
 - Serve over HTTPS. On the frontend, keep the access token in memory; store the refresh token in an httpOnly cookie or secure storage.
 - The built-in rate limiter is per-process. Behind multiple instances, pass a Redis-backed limiter.

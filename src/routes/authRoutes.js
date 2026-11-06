@@ -49,6 +49,11 @@ export function createAuthRouter({ service, authenticate, rateLimiter }) {
     res.status(204).end();
   }));
 
+  r.post('/resend-verification', limit, wrap(async (req, res) => {
+    await service.resendVerification(req.body ?? {});
+    res.json({ message: 'If that account needs verifying, an email has been sent.' });
+  }));
+
   r.post('/verify-email', wrap(async (req, res) => {
     await service.verifyEmail(req.body ?? {});
     res.status(204).end();
