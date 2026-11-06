@@ -18,7 +18,7 @@ Write it once, drop it into every new project, and switch the database by swappi
 ┌──────────────────▼──────────────────┐
 │ routes  →  authService  →  tokenSvc │   ← never changes between projects
 └──────────────────┬──────────────────┘
-                   │  8-method adapter contract
+                   │  9-method adapter contract
      ┌─────────────┼──────────────┐
   memory        mongo          postgres   (or your own: MySQL, Prisma, DynamoDB…)
 ```
@@ -82,7 +82,7 @@ npm install github:<your-username>/node-auth-kit#v1.0.0
 | In-memory (tests) | — | `memoryAdapter()` |
 | MongoDB | `npm i mongodb` | `mongoAdapter({ db })` |
 | PostgreSQL | `npm i pg` | `postgresAdapter({ pool })` |
-| Anything else | your driver | implement the 8 methods in [`src/adapters/README.md`](src/adapters/README.md) |
+| Anything else | your driver | implement the 9 methods in [`src/adapters/README.md`](src/adapters/README.md) |
 
 Then prove your adapter works with the shared contract tests:
 

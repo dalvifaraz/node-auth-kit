@@ -8,7 +8,7 @@ import { AuthError } from './utils/errors.js';
 
 const REQUIRED_ADAPTER_METHODS = [
   'createUser', 'findUserByEmail', 'findUserById', 'updateUser',
-  'saveToken', 'findToken', 'deleteToken', 'deleteUserTokens',
+  'saveToken', 'findToken', 'consumeToken', 'deleteToken', 'deleteUserTokens',
 ];
 
 const DAY = 24 * 60 * 60 * 1000;

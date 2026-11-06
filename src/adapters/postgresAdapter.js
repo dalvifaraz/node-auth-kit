@@ -120,6 +120,10 @@ export function postgresAdapter({ pool }) {
       const { rows } = await q('SELECT * FROM auth_tokens WHERE token_hash = $1 AND type = $2', [tokenHash, type]);
       return mapToken(rows[0]);
     },
+    async consumeToken(tokenHash, type) {
+      const { rows } = await q('DELETE FROM auth_tokens WHERE token_hash = $1 AND type = $2 RETURNING *', [tokenHash, type]);
+      return mapToken(rows[0]);
+    },
     async deleteToken(tokenHash) {
       await q('DELETE FROM auth_tokens WHERE token_hash = $1', [tokenHash]);
     },

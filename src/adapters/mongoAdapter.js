@@ -26,6 +26,12 @@ export function mongoAdapter({ db, usersCollection = 'users', tokensCollection =
     return { id: String(_id), ...rest };
   };
 
+  const mapToken = (doc) => {
+    if (!doc) return null;
+    const { _id, ...rest } = doc;
+    return rest;
+  };
+
   return {
     async init() {
       await users.createIndex({ email: 1 }, { unique: true });
@@ -58,8 +64,10 @@ export function mongoAdapter({ db, usersCollection = 'users', tokensCollection =
       await tokens.insertOne({ ...record });
     },
     async findToken(tokenHash, type) {
-      const t = await tokens.findOne({ tokenHash, type });
-      return t ? { ...t, _id: undefined } : null;
+      return mapToken(await tokens.findOne({ tokenHash, type }));
+    },
+    async consumeToken(tokenHash, type) {
+      return mapToken(await tokens.findOneAndDelete({ tokenHash, type }));
     },
     async deleteToken(tokenHash) {
       await tokens.deleteOne({ tokenHash });
