@@ -299,6 +299,35 @@ describe('refresh token reuse', () => {
   });
 });
 
+describe('forgot-password privacy', () => {
+  it('does not wait for the email hook', async () => {
+    const hooks = { sendPasswordResetEmail: () => new Promise((resolve) => setTimeout(resolve, 300)) };
+    const { app } = buildApp({ hooks });
+    await request(app).post('/auth/register').send(creds);
+    const start = performance.now();
+    await request(app).post('/auth/forgot-password').send({ email: creds.email }).expect(200);
+    assert.ok(performance.now() - start < 200);
+  });
+
+  it('responds the same when the email hook fails', async () => {
+    const logged = [];
+    const original = console.error;
+    console.error = (...args) => logged.push(args);
+    try {
+      const hooks = { sendPasswordResetEmail: async () => { throw new Error('smtp down'); } };
+      const { app } = buildApp({ hooks });
+      await request(app).post('/auth/register').send(creds);
+      const known = await request(app).post('/auth/forgot-password').send({ email: creds.email }).expect(200);
+      const unknown = await request(app).post('/auth/forgot-password').send({ email: 'ghost@x.com' }).expect(200);
+      assert.deepEqual(known.body, unknown.body);
+      await new Promise((resolve) => setImmediate(resolve));
+      assert.equal(logged.length, 1);
+    } finally {
+      console.error = original;
+    }
+  });
+});
+
 describe('configuration', () => {
   it('fails fast on a bad adapter or weak secret', () => {
     assert.throws(() => createAuth({ adapter: {}, jwtSecret: 'x'.repeat(32) }), /missing methods/);

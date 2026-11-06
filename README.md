@@ -7,7 +7,7 @@ Write it once, drop it into every new project, and switch the database by swappi
 - JWT access tokens (short-lived) + **rotating opaque refresh tokens** (stored hashed, with stolen-token detection)
 - Forgot / reset password, change password, optional email verification
 - `authenticate` and `requireRoles()` middleware for your own routes
-- bcrypt password hashing, constant-time login (no user enumeration), built-in rate limiting
+- bcrypt password hashing, built-in rate limiting; login and forgot-password do not reveal whether an email is registered
 - Adapters included: **in-memory**, **MongoDB**, **PostgreSQL** — add any other DB in ~60 lines
 
 ## Architecture
@@ -134,6 +134,8 @@ Errors are always `{ error: { code, message } }`.
 ## Security notes
 
 - Keep `JWT_SECRET` out of git (`.env` is ignored). Use a different secret per project.
+- `/register` does return 409 for a taken email, so it can show that an account exists. The rate limit slows bulk checks.
+- `sendPasswordResetEmail` runs after the response is sent, so failures are logged rather than returned. Platforms that freeze the process after responding, such as some serverless hosts, may need a queue.
 - Serve over HTTPS. On the frontend, keep the access token in memory; store the refresh token in an httpOnly cookie or secure storage.
 - The built-in rate limiter is per-process. Behind multiple instances, pass a Redis-backed limiter.
 - Rate limits go by client IP. Set Express `trust proxy` only when a proxy is really in front of the app, because otherwise clients can fake their IP.
