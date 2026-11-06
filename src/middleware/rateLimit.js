@@ -1,7 +1,7 @@
 import { AuthError } from '../utils/errors.js';
 
 /**
- * Tiny in-memory fixed-window rate limiter for sensitive routes (login, forgot-password).
+ * Tiny in-memory fixed-window rate limiter for sensitive routes, counted per IP and route.
  * Fine for a single instance. Behind a load balancer, swap for a Redis-backed limiter
  * (e.g. express-rate-limit + rate-limit-redis) via createAuth({ rateLimiter }).
  */
