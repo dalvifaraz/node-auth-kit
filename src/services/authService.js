@@ -17,6 +17,12 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
     if (problem) throw Errors.validation(problem);
   };
 
+  const assertVerified = (user) => {
+    if (config.requireVerifiedEmail && !user.emailVerified) {
+      throw Errors.forbidden('Please verify your email before logging in');
+    }
+  };
+
   async function register({ email, password, name, ...extra }) {
     const normalized = normalizeEmail(email);
     checkPassword(password);
@@ -40,6 +46,7 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
     }
     await hooks.onRegister?.(toPublicUser(user));
 
+    if (config.requireVerifiedEmail) return { user: toPublicUser(user) };
     return { user: toPublicUser(user), ...(await tokens.issueTokenPair(user)) };
   }
 
@@ -53,9 +60,7 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
       user?.passwordHash ?? (await dummyHash)
     );
     if (!user || !ok) throw Errors.invalidCredentials();
-    if (config.emailVerification && config.requireVerifiedEmail && !user.emailVerified) {
-      throw Errors.forbidden('Please verify your email before logging in');
-    }
+    assertVerified(user);
     await hooks.onLogin?.(toPublicUser(user), meta);
     return { user: toPublicUser(user), ...(await tokens.issueTokenPair(user, meta)) };
   }
@@ -65,6 +70,7 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
     const record = await tokens.consumeOpaqueToken(refreshToken, TOKEN_TYPES.REFRESH);
     const user = await adapter.findUserById(record.userId);
     if (!user) throw Errors.invalidToken();
+    assertVerified(user);
     return { user: toPublicUser(user), ...(await tokens.issueTokenPair(user, meta)) };
   }
 

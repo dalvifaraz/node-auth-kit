@@ -107,6 +107,7 @@ runAdapterContract('mysql', () => mysqlAdapter({ pool }));
 | POST | `/verify-email` | `{ token }` | — |
 
 Login/register/refresh return `{ user, accessToken, refreshToken, tokenType, expiresIn }`.
+With `requireVerifiedEmail`, register returns only `{ user }`.
 Errors are always `{ error: { code, message } }`.
 
 ## Options
@@ -122,7 +123,8 @@ Errors are always `{ error: { code, message } }`.
 | `defaultRoles` | `['user']` | |
 | `allowedRegisterFields` | `[]` | extra fields accepted at register (e.g. `['phone']`) |
 | `passwordPolicy` | 8+ chars, letter + number | `(pw) => errorMessage \| null` |
-| `emailVerification` / `requireVerifiedEmail` | `false` | |
+| `emailVerification` | `false` | send a verification email at register |
+| `requireVerifiedEmail` | `false` | also block tokens until verified; turns `emailVerification` on |
 | `rateLimit` / `rateLimiter` | 10 req / 15 min | pass `false` to disable or your own middleware |
 | `hooks` | `{}` | `sendPasswordResetEmail`, `sendVerificationEmail`, `onRegister`, `onLogin` |
 
