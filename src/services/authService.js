@@ -55,7 +55,7 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
       email: normalized,
       passwordHash: await hashPassword(password, config.bcryptRounds),
       name: name ?? null,
-      roles: config.defaultRoles,
+      roles: [...config.defaultRoles],
       emailVerified: false,
       tokenVersion: 0,
       ...pick(extra, config.allowedRegisterFields),

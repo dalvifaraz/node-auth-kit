@@ -431,4 +431,8 @@ describe('configuration', () => {
     const placeholder = 'change-me-to-a-long-random-string-at-least-32-chars';
     assert.throws(() => createAuth({ adapter: memoryAdapter(), jwtSecret: placeholder }), /placeholder/);
   });
+
+  it('refuses protected fields at signup', () => {
+    assert.throws(() => buildApp({ allowedRegisterFields: ['phone', 'roles'] }), /cannot include: roles/);
+  });
 });

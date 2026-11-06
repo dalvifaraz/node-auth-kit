@@ -11,6 +11,11 @@ const REQUIRED_ADAPTER_METHODS = [
   'saveToken', 'findToken', 'consumeToken', 'deleteToken', 'deleteUserTokens', 'deleteExpiredTokens',
 ];
 
+// Fields a client must never be able to set at signup.
+const PROTECTED_USER_FIELDS = [
+  'id', 'email', 'passwordHash', 'roles', 'emailVerified', 'tokenVersion', 'disabled', 'createdAt', 'updatedAt',
+];
+
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
 
@@ -38,6 +43,11 @@ export function createAuth(options = {}) {
 
   if (options.requireVerifiedEmail && options.emailVerification === false) {
     throw new Error('createAuth: `requireVerifiedEmail` needs `emailVerification`');
+  }
+
+  const unsafe = (options.allowedRegisterFields ?? []).filter((f) => PROTECTED_USER_FIELDS.includes(f));
+  if (unsafe.length) {
+    throw new Error(`createAuth: \`allowedRegisterFields\` cannot include: ${unsafe.join(', ')}`);
   }
 
   const config = {
