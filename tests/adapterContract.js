@@ -43,6 +43,12 @@ export function runAdapterContract(name, makeAdapter) {
       assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
     });
 
+    it('stores extra fields', async () => {
+      const a = await makeAdapter();
+      const u = await newUser(a, { phone: '123' });
+      assert.equal((await a.findUserById(u.id)).phone, '123');
+    });
+
     it('updates users', async () => {
       const a = await makeAdapter();
       const u = await newUser(a);

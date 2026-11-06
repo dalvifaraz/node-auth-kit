@@ -56,6 +56,7 @@ export function postgresAdapter({ pool }) {
   const mapUser = (row) => {
     if (!row) return null;
     return {
+      ...(row.profile ?? {}), // extra registration fields; core columns below always win
       id: row.id,
       email: row.email,
       passwordHash: row.password_hash,
@@ -65,7 +66,6 @@ export function postgresAdapter({ pool }) {
       tokenVersion: row.token_version,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
-      ...(row.profile ?? {}), // extra registration fields
     };
   };
   const mapToken = (row) =>
