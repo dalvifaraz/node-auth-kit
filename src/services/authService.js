@@ -1,4 +1,4 @@
-import { hashPassword, verifyPassword } from '../utils/crypto.js';
+import { hashPassword, verifyPassword, MAX_PASSWORD_BYTES } from '../utils/crypto.js';
 import { normalizeEmail } from '../utils/validate.js';
 import { Errors } from '../utils/errors.js';
 import { TOKEN_TYPES } from './tokenService.js';
@@ -10,11 +10,15 @@ export const toPublicUser = (user) => {
   return { ...rest, id: String(user.id) };
 };
 
+const isTooLong = (password) => Buffer.byteLength(password) > MAX_PASSWORD_BYTES;
+
 export function createAuthService({ adapter, tokens, config, hooks }) {
   let dummyHash; // lazily created; used when the email doesn't exist
   const checkPassword = (password) => {
     const problem = config.passwordPolicy(password);
     if (problem) throw Errors.validation(problem);
+    if (typeof password !== 'string') throw Errors.validation('Password is required');
+    if (isTooLong(password)) throw Errors.validation(`Password must be at most ${MAX_PASSWORD_BYTES} bytes`);
   };
 
   const assertVerified = (user) => {
@@ -55,11 +59,9 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
     const user = await adapter.findUserByEmail(normalized);
     // Always run bcrypt to keep response time constant (prevents user enumeration by timing).
     dummyHash ??= hashPassword('dummy-password-for-timing', config.bcryptRounds);
-    const ok = await verifyPassword(
-      typeof password === 'string' ? password : '',
-      user?.passwordHash ?? (await dummyHash)
-    );
-    if (!user || !ok) throw Errors.invalidCredentials();
+    const candidate = typeof password === 'string' ? password : '';
+    const ok = await verifyPassword(candidate, user?.passwordHash ?? (await dummyHash));
+    if (!user || !ok || isTooLong(candidate)) throw Errors.invalidCredentials();
     assertVerified(user);
     await hooks.onLogin?.(toPublicUser(user), meta);
     return { user: toPublicUser(user), ...(await tokens.issueTokenPair(user, meta)) };
