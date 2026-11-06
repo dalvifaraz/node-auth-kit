@@ -21,11 +21,11 @@ jobs:
           --health-cmd "pg_isready -U postgres"
           --health-interval 5s --health-timeout 5s --health-retries 10
       mongo:
-        image: mongo:8
+        image: mongo:7
         ports: ['27017:27017']
     env:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/auth_test
-      MONGO_URL: mongodb://localhost:27017
+      MONGO_URL: mongodb://127.0.0.1:27017
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -34,3 +34,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - name: Report Mongo service logs
+        if: failure()
+        run: |
+          docker ps -a --format '{{.Image}} {{.Status}}' | sed 's/^/::warning::/'
+          docker logs "$(docker ps -aq --filter ancestor=mongo:7)" 2>&1 | tail -n 6 | cut -c1-400 | sed 's/^/::warning::/'
