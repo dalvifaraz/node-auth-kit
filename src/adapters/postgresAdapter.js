@@ -8,6 +8,9 @@
  *
  * Works with any Postgres-compatible DB (Supabase, Neon, RDS, CockroachDB*).
  */
+import { Errors } from '../utils/errors.js';
+
+const UNIQUE_VIOLATION = '23505';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isUuid = (id) => UUID_RE.test(String(id));
 
@@ -79,8 +82,12 @@ export function postgresAdapter({ pool }) {
       const keys = Object.keys(cols);
       const sql = `INSERT INTO auth_users (${[...keys.map((k) => COLUMNS[k]), 'profile'].join(', ')})
                    VALUES (${[...keys, 'profile'].map((_, i) => `$${i + 1}`).join(', ')}) RETURNING *`;
-      const { rows } = await q(sql, [...keys.map((k) => cols[k]), JSON.stringify(profile)]);
-      return mapUser(rows[0]);
+      try {
+        const { rows } = await q(sql, [...keys.map((k) => cols[k]), JSON.stringify(profile)]);
+        return mapUser(rows[0]);
+      } catch (err) {
+        throw err?.code === UNIQUE_VIOLATION ? Errors.emailTaken() : err;
+      }
     },
     async findUserByEmail(email) {
       const { rows } = await q('SELECT * FROM auth_users WHERE email = $1', [email]);
