@@ -129,6 +129,7 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
       passwordHash: await hashPassword(newPassword, config.bcryptRounds),
       updatedAt: new Date(),
     });
+    await tokens.revokeAllForUser(user.id, TOKEN_TYPES.PASSWORD_RESET);
     const updated = await revokeSessions(user.id);
     return { user: toPublicUser(updated), ...(await tokens.issueTokenPair(updated)) };
   }
@@ -152,6 +153,7 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
     const record = await tokens.consumeOpaqueToken(token, TOKEN_TYPES.PASSWORD_RESET);
     await adapter.updateUser(record.userId, {
       passwordHash: await hashPassword(newPassword, config.bcryptRounds),
+      emailVerified: true, // the reset link proves they own the address
       updatedAt: new Date(),
     });
     await revokeSessions(record.userId);

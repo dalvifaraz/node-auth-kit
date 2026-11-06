@@ -424,6 +424,29 @@ describe('token cleanup', () => {
   });
 });
 
+describe('password reset links', () => {
+  const tick = () => new Promise((resolve) => setImmediate(resolve));
+
+  it('cancels a pending reset link when the password changes', async () => {
+    const { app, sent } = buildApp();
+    const { body } = await request(app).post('/auth/register').send(creds);
+    await request(app).post('/auth/forgot-password').send({ email: creds.email });
+    await tick();
+    await request(app).post('/auth/change-password').set(...bearer(body.accessToken))
+      .send({ currentPassword: creds.password, newPassword: 'changed999' }).expect(200);
+    await request(app).post('/auth/reset-password').send({ token: sent.reset.token, newPassword: 'attacker99' }).expect(401);
+  });
+
+  it('treats a completed reset as proof of the email address', async () => {
+    const { app, sent } = buildApp({ requireVerifiedEmail: true });
+    await request(app).post('/auth/register').send(creds);
+    await request(app).post('/auth/forgot-password').send({ email: creds.email });
+    await tick();
+    await request(app).post('/auth/reset-password').send({ token: sent.reset.token, newPassword: 'changed999' }).expect(204);
+    await request(app).post('/auth/login').send({ email: creds.email, password: 'changed999' }).expect(200);
+  });
+});
+
 describe('configuration', () => {
   it('fails fast on a bad adapter or weak secret', () => {
     assert.throws(() => createAuth({ adapter: {}, jwtSecret: 'x'.repeat(32) }), /missing methods/);
