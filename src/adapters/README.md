@@ -9,7 +9,7 @@ that implements these 10 async methods and pass it to `createAuth({ adapter })`.
 | `createUser(data)` | `{ email, passwordHash, name, roles, emailVerified, tokenVersion, createdAt, updatedAt, ...extra }` | created user **with `id`** |
 | `findUserByEmail(email)` | lower-cased email | user or `null` |
 | `findUserById(id)` | string id | user or `null` |
-| `updateUser(id, fields)` | id, partial fields | updated user (or nothing) |
+| `updateUser(id, fields)` | id, partial fields | updated user, or `null` if not found |
 | `saveToken(record)` | `{ userId, tokenHash, type, expiresAt, meta }` | anything |
 | `findToken(tokenHash, type)` | hash, type | record or `null` |
 | `consumeToken(tokenHash, type)` | hash, type | record or `null`; **must be atomic** |

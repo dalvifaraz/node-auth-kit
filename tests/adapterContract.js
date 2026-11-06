@@ -52,7 +52,9 @@ export function runAdapterContract(name, makeAdapter) {
     it('updates users', async () => {
       const a = await makeAdapter();
       const u = await newUser(a);
-      await a.updateUser(u.id, { emailVerified: true });
+      const updated = await a.updateUser(u.id, { emailVerified: true, value: 'x' });
+      assert.equal(updated.emailVerified, true);
+      assert.equal(updated.email, u.email);
       assert.equal((await a.findUserById(u.id)).emailVerified, true);
     });
 

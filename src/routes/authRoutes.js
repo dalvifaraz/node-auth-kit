@@ -10,7 +10,7 @@ export function createAuthRouter({ service, authenticate, rateLimiter }) {
   const limit = rateLimiter ?? ((_req, _res, next) => next());
 
   r.post('/register', limit, wrap(async (req, res) => {
-    res.status(201).json(await service.register(req.body ?? {}));
+    res.status(201).json(await service.register(req.body ?? {}, meta(req)));
   }));
 
   r.post('/login', limit, wrap(async (req, res) => {
