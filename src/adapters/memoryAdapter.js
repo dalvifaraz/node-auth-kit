@@ -27,6 +27,12 @@ export function memoryAdapter() {
       Object.assign(u, fields);
       return clone(u);
     },
+    async listUsers({ limit, offset, search }) {
+      const matches = [...users.values()]
+        .filter((u) => !search || u.email.includes(search))
+        .sort((a, b) => b.createdAt - a.createdAt);
+      return { users: matches.slice(offset, offset + limit).map(clone), total: matches.length };
+    },
     async saveToken(record) {
       tokens.set(record.tokenHash, { ...record });
     },

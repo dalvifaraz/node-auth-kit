@@ -3,6 +3,8 @@ import { Errors } from './errors.js';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_EMAIL_LENGTH = 254;
 const MAX_NAME_LENGTH = 100;
+const MAX_ROLES = 20;
+const MAX_ROLE_LENGTH = 50;
 
 export function normalizeEmail(email) {
   if (typeof email !== 'string' || email.length > MAX_EMAIL_LENGTH || !EMAIL_RE.test(email.trim())) {
@@ -17,6 +19,12 @@ export function checkName(name) {
   if (typeof name !== 'string' || name.length > MAX_NAME_LENGTH) {
     throw Errors.validation(`Name must be text of at most ${MAX_NAME_LENGTH} characters`);
   }
+}
+
+export function checkRoles(roles) {
+  const valid = Array.isArray(roles) && roles.length <= MAX_ROLES
+    && roles.every((role) => typeof role === 'string' && role.length > 0 && role.length <= MAX_ROLE_LENGTH);
+  if (!valid) throw Errors.validation('Roles must be a list of short names');
 }
 
 /**

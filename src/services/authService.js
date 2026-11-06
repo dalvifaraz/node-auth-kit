@@ -1,5 +1,5 @@
 import { hashPassword, verifyPassword, MAX_PASSWORD_BYTES } from '../utils/crypto.js';
-import { normalizeEmail, checkName } from '../utils/validate.js';
+import { normalizeEmail, checkName, checkRoles } from '../utils/validate.js';
 import { Errors } from '../utils/errors.js';
 import { TOKEN_TYPES } from './tokenService.js';
 
@@ -180,6 +180,31 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
     await adapter.updateUser(record.userId, { emailVerified: true, updatedAt: new Date() });
   }
 
+  async function listUsers({ limit, offset, search } = {}) {
+    const take = Math.min(Math.max(Number.parseInt(limit, 10) || 20, 1), 100);
+    const skip = Math.max(Number.parseInt(offset, 10) || 0, 0);
+    const term = typeof search === 'string' ? search.trim().toLowerCase().slice(0, 254) : '';
+    const { users, total } = await adapter.listUsers({ limit: take, offset: skip, search: term });
+    return { users: users.map((user) => toPublicUser(user)), total, limit: take, offset: skip };
+  }
+
+  async function setRoles(userId, roles, { actorId } = {}) {
+    checkRoles(roles);
+    if (String(userId) === String(actorId) && !roles.includes(config.adminRole)) {
+      throw Errors.validation('You cannot remove your own admin role');
+    }
+    const user = await adapter.findUserById(userId);
+    if (!user) throw Errors.notFound('User not found');
+    return toPublicUser(await adapter.updateUser(user.id, { roles: [...new Set(roles)], updatedAt: new Date() }));
+  }
+
+  /** For setup scripts, for example to create the first admin. */
+  async function addRoleByEmail(email, role) {
+    const user = await adapter.findUserByEmail(normalizeEmail(email));
+    if (!user) throw Errors.notFound('User not found');
+    return setRoles(user.id, [...(user.roles ?? []), role]);
+  }
+
   async function setDisabled(userId, disabled, { actorId } = {}) {
     if (disabled && String(userId) === String(actorId)) throw Errors.validation('You cannot disable your own account');
     const user = await adapter.findUserById(userId);
@@ -192,7 +217,7 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
   return {
     register, login, refresh, logout, logoutAll, me,
     changePassword, forgotPassword, resetPassword, verifyEmail, resendVerification,
-    setDisabled,
+    listUsers, setRoles, setDisabled, addRoleByEmail,
   };
 }
 

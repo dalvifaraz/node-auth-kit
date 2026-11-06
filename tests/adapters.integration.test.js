@@ -31,7 +31,7 @@ function runAuthFlows(name, adapter) {
     app.use('/auth', auth.router);
     app.get('/private', auth.authenticate, (req, res) => res.json({ id: req.auth.userId }));
     app.use(auth.errorHandler);
-    return { app, sent };
+    return { app, sent, auth };
   }
   const newCreds = () => ({ email: `${crypto.randomUUID()}@test.dev`, password: 'secret123' });
 
@@ -71,6 +71,30 @@ function runAuthFlows(name, adapter) {
         .send({ currentPassword: creds.password, newPassword: 'changed999' }).expect(200);
       await request(app).get('/private').set(...bearer(body.accessToken)).expect(401);
       await request(app).get('/private').set(...bearer(res.body.accessToken)).expect(200);
+    });
+
+    it('lets an admin find, promote and disable a user', async () => {
+      const { app, auth } = build();
+      const adminCreds = newCreds();
+      const memberCreds = newCreds();
+      await request(app).post('/auth/register').send(adminCreds);
+      await auth.service.addRoleByEmail(adminCreds.email, 'admin');
+      const { body: admin } = await request(app).post('/auth/login').send(adminCreds);
+      const { body: member } = await request(app).post('/auth/register').send(memberCreds);
+
+      const found = await request(app).get('/auth/admin/users').query({ search: memberCreds.email }).set(...bearer(admin.accessToken)).expect(200);
+      assert.equal(found.body.total, 1);
+      assert.equal(found.body.users[0].id, member.user.id);
+
+      const path = '/auth/admin/users/' + member.user.id;
+      const roles = await request(app).put(path + '/roles').set(...bearer(admin.accessToken)).send({ roles: ['user', 'editor'] }).expect(200);
+      assert.deepEqual(roles.body.user.roles, ['user', 'editor']);
+
+      await request(app).post(path + '/disable').set(...bearer(admin.accessToken)).expect(200);
+      await request(app).post('/auth/login').send(memberCreds).expect(403);
+      await request(app).get('/private').set(...bearer(member.accessToken)).expect(401);
+      await request(app).post(path + '/enable').set(...bearer(admin.accessToken)).expect(200);
+      await request(app).post('/auth/login').send(memberCreds).expect(200);
     });
 
     it('resets a password and revokes old access tokens', async () => {

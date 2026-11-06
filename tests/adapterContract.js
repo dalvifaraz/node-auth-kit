@@ -9,7 +9,7 @@ import crypto from 'node:crypto';
 
 const uid = () => crypto.randomUUID();
 const newUser = (a, fields = {}) =>
-  a.createUser({ email: `${uid()}@test.dev`, passwordHash: 'x', name: 'A', roles: ['user'], emailVerified: false, ...fields });
+  a.createUser({ email: `${uid()}@test.dev`, passwordHash: 'x', name: 'A', roles: ['user'], emailVerified: false, createdAt: new Date(), ...fields });
 const tokenFor = (user, fields = {}) => ({
   userId: String(user.id), tokenHash: uid(), type: 'refresh', expiresAt: new Date(Date.now() + 1e5), meta: {}, ...fields,
 });
@@ -47,6 +47,30 @@ export function runAdapterContract(name, makeAdapter) {
       const a = await makeAdapter();
       const u = await newUser(a, { phone: '123' });
       assert.equal((await a.findUserById(u.id)).phone, '123');
+    });
+
+    it('lists users with paging and literal search', async () => {
+      const a = await makeAdapter();
+      const tag = uid();
+      const at = (ms) => new Date(Date.now() + ms);
+      await newUser(a, { email: `old.${tag}@test.dev`, createdAt: at(-2000) });
+      await newUser(a, { email: `mid.${tag}@test.dev`, createdAt: at(-1000) });
+      await newUser(a, { email: `new.${tag}@test.dev`, createdAt: at(0) });
+
+      const page = await a.listUsers({ limit: 2, offset: 0, search: tag });
+      assert.equal(page.total, 3);
+      assert.deepEqual(page.users.map((u) => u.email.split('.')[0]), ['new', 'mid']);
+      assert.ok(page.users[0].id);
+
+      const next = await a.listUsers({ limit: 2, offset: 2, search: tag });
+      assert.deepEqual(next.users.map((u) => u.email.split('.')[0]), ['old']);
+
+      for (const pattern of ['%', '_', '.*', tag.replace(/-/g, '_')]) {
+        const { total } = await a.listUsers({ limit: 5, offset: 0, search: `${pattern}@nomatch` });
+        assert.equal(total, 0, pattern);
+      }
+      assert.equal((await a.listUsers({ limit: 5, offset: 0, search: `.${tag}` })).total, 3);
+      assert.equal((await a.listUsers({ limit: 5, offset: 0, search: `x${tag}` })).total, 0);
     });
 
     it('updates users', async () => {

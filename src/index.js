@@ -7,7 +7,7 @@ import { defaultPasswordPolicy } from './utils/validate.js';
 import { AuthError } from './utils/errors.js';
 
 const REQUIRED_ADAPTER_METHODS = [
-  'createUser', 'findUserByEmail', 'findUserById', 'updateUser',
+  'createUser', 'findUserByEmail', 'findUserById', 'updateUser', 'listUsers',
   'saveToken', 'findToken', 'consumeToken', 'deleteToken', 'deleteUserTokens', 'deleteExpiredTokens',
 ];
 
@@ -62,6 +62,7 @@ export function createAuth(options = {}) {
     bcryptRounds: options.bcryptRounds ?? 12,
     checkTokenVersion: options.checkTokenVersion ?? true,
     defaultRoles: options.defaultRoles ?? ['user'],
+    adminRole: options.adminRole ?? 'admin',
     allowedRegisterFields: options.allowedRegisterFields ?? [], // extra fields accepted on /register
     publicUserFields: options.publicUserFields ?? [], // extra user fields returned to clients
     passwordPolicy: options.passwordPolicy ?? defaultPasswordPolicy,
@@ -90,7 +91,9 @@ export function createAuth(options = {}) {
     options.rateLimiter === false || options.rateLimit === false
       ? null
       : options.rateLimiter ?? createRateLimiter(options.rateLimit);
-  const router = createAuthRouter({ service, authenticate, rateLimiter });
+  // Admin routes always check the database, so a removed admin loses access immediately.
+  const adminGuard = [createAuthenticate(tokens, adapter), requireRoles(config.adminRole)];
+  const router = createAuthRouter({ service, authenticate, adminGuard, rateLimiter });
 
   /** Mount in your app after your routes so `authenticate` errors return JSON. */
   // eslint-disable-next-line no-unused-vars
