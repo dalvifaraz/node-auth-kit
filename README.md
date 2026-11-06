@@ -134,6 +134,7 @@ Errors are always `{ error: { code, message } }`.
 - Keep `JWT_SECRET` out of git (`.env` is ignored). Use a different secret per project.
 - Serve over HTTPS. On the frontend, keep the access token in memory; store the refresh token in an httpOnly cookie or secure storage.
 - The built-in rate limiter is per-process. Behind multiple instances, pass a Redis-backed limiter.
+- Rate limits go by client IP. Set Express `trust proxy` only when a proxy is really in front of the app, because otherwise clients can fake their IP.
 
 ## Roadmap ideas
 

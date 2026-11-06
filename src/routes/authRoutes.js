@@ -35,7 +35,7 @@ export function createAuthRouter({ service, authenticate, rateLimiter }) {
     res.json({ user: await service.me(req.auth.userId) });
   }));
 
-  r.post('/change-password', authenticate, wrap(async (req, res) => {
+  r.post('/change-password', authenticate, limit, wrap(async (req, res) => {
     await service.changePassword(req.auth.userId, req.body ?? {});
     res.status(204).end();
   }));
