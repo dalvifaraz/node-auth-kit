@@ -6,7 +6,7 @@ that implements these 10 async methods and pass it to `createAuth({ adapter })`.
 
 | Method | Receives | Returns |
 | --- | --- | --- |
-| `createUser(data)` | `{ email, passwordHash, name, roles, emailVerified, tokenVersion, createdAt, updatedAt, ...extra }` | created user **with `id`** |
+| `createUser(data)` | `{ email, passwordHash, name, roles, emailVerified, tokenVersion, disabled, createdAt, updatedAt, ...extra }` | created user **with `id`** |
 | `findUserByEmail(email)` | lower-cased email | user or `null` |
 | `findUserById(id)` | string id | user or `null` |
 | `updateUser(id, fields)` | id, partial fields | updated user, or `null` if not found |
