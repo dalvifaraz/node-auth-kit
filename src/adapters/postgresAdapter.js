@@ -120,6 +120,16 @@ export function postgresAdapter({ pool }) {
       const { rows } = await q(`UPDATE auth_users SET ${sets.join(', ')} WHERE id = $1::uuid RETURNING *`, params);
       return mapUser(rows[0]);
     },
+    async listUsers({ limit, offset, search }) {
+      const where = search ? 'WHERE email LIKE $1' : '';
+      const filter = search ? [`%${search.replace(/[\\%_]/g, '\\$&')}%`] : [];
+      const n = filter.length;
+      const [{ rows }, count] = await Promise.all([
+        q(`SELECT * FROM auth_users ${where} ORDER BY created_at DESC, id LIMIT $${n + 1} OFFSET $${n + 2}`, [...filter, limit, offset]),
+        q(`SELECT count(*)::int AS total FROM auth_users ${where}`, filter),
+      ]);
+      return { users: rows.map(mapUser), total: count.rows[0].total };
+    },
     async saveToken({ userId, tokenHash, type, expiresAt, meta = {} }) {
       await q('INSERT INTO auth_tokens (token_hash, user_id, type, expires_at, meta) VALUES ($1, $2, $3, $4, $5)', [
         tokenHash, userId, type, expiresAt, JSON.stringify(meta),

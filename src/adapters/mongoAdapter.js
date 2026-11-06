@@ -60,6 +60,14 @@ export function mongoAdapter({ db, usersCollection = 'users', tokensCollection =
       const res = await users.findOneAndUpdate({ _id }, { $set: fields }, { returnDocument: 'after' });
       return map(res);
     },
+    async listUsers({ limit, offset, search }) {
+      const filter = search ? { email: { $regex: search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') } } : {};
+      const [docs, total] = await Promise.all([
+        users.find(filter).sort({ createdAt: -1, _id: 1 }).skip(offset).limit(limit).toArray(),
+        users.countDocuments(filter),
+      ]);
+      return { users: docs.map(map), total };
+    },
     async saveToken(record) {
       await tokens.insertOne({ ...record });
     },

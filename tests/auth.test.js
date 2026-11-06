@@ -483,6 +483,95 @@ describe('disabled accounts', () => {
   });
 });
 
+describe('admin api', () => {
+  const adminCreds = { email: 'boss@example.com', password: 'secret123' };
+
+  async function withAdmin(overrides) {
+    const ctx = buildApp(overrides);
+    await request(ctx.app).post('/auth/register').send(adminCreds);
+    await ctx.auth.service.addRoleByEmail(adminCreds.email, 'admin');
+    const { body: admin } = await request(ctx.app).post('/auth/login').send(adminCreds);
+    const { body: member } = await request(ctx.app).post('/auth/register').send(creds);
+    return { ...ctx, admin, member, as: bearer(admin.accessToken) };
+  }
+
+  it('is closed to anyone who is not an admin', async () => {
+    const { app, member } = await withAdmin();
+    await request(app).get('/auth/admin/users').expect(401);
+    await request(app).get('/auth/admin/users').set(...bearer(member.accessToken)).expect(403);
+  });
+
+  it('lists users with paging and search, without private fields', async () => {
+    const { app, as } = await withAdmin();
+    const all = await request(app).get('/auth/admin/users').set(...as).expect(200);
+    assert.equal(all.body.total, 2);
+    assert.equal(all.body.users[0].passwordHash, undefined);
+    const paged = await request(app).get('/auth/admin/users?limit=1&offset=1').set(...as).expect(200);
+    assert.equal(paged.body.users.length, 1);
+    const found = await request(app).get('/auth/admin/users?search=JANE').set(...as).expect(200);
+    assert.deepEqual(found.body.users.map((u) => u.email), ['jane@example.com']);
+  });
+
+  it('ignores bad paging values and non-text search', async () => {
+    const { app, as } = await withAdmin();
+    const res = await request(app).get('/auth/admin/users?limit=9999&offset=-5&search[$ne]=x').set(...as).expect(200);
+    assert.equal(res.body.limit, 100);
+    assert.equal(res.body.offset, 0);
+    assert.equal(res.body.total, 2);
+  });
+
+  it('reads one user and returns 404 for an unknown id', async () => {
+    const { app, as, member } = await withAdmin();
+    const res = await request(app).get('/auth/admin/users/' + member.user.id).set(...as).expect(200);
+    assert.equal(res.body.user.email, 'jane@example.com');
+    await request(app).get('/auth/admin/users/nope').set(...as).expect(404);
+  });
+
+  it('sets roles, which apply at once', async () => {
+    const { app, as, member } = await withAdmin();
+    await request(app).put('/auth/admin/users/' + member.user.id + '/roles').set(...as).send({ roles: ['admin'] }).expect(200);
+    await request(app).get('/admin').set(...bearer(member.accessToken)).expect(200);
+  });
+
+  it('rejects invalid roles', async () => {
+    const { app, as, member } = await withAdmin();
+    for (const roles of ['admin', [1], [''], undefined]) {
+      await request(app).put('/auth/admin/users/' + member.user.id + '/roles').set(...as).send({ roles }).expect(400);
+    }
+  });
+
+  it('disables and enables accounts', async () => {
+    const { app, as, member } = await withAdmin();
+    const path = '/auth/admin/users/' + member.user.id;
+    const res = await request(app).post(path + '/disable').set(...as).expect(200);
+    assert.equal(res.body.user.disabled, true);
+    await request(app).post('/auth/login').send(creds).expect(403);
+    await request(app).post(path + '/enable').set(...as).expect(200);
+    await request(app).post('/auth/login').send(creds).expect(200);
+  });
+
+  it('stops admins locking themselves out', async () => {
+    const { app, as, admin } = await withAdmin();
+    const path = '/auth/admin/users/' + admin.user.id;
+    await request(app).put(path + '/roles').set(...as).send({ roles: ['user'] }).expect(400);
+    await request(app).post(path + '/disable').set(...as).expect(400);
+  });
+
+  it('checks the database even with checkTokenVersion off', async () => {
+    const { app, as, auth, admin } = await withAdmin({ checkTokenVersion: false });
+    await auth.service.setRoles(admin.user.id, ['user']);
+    await request(app).get('/auth/admin/users').set(...as).expect(403);
+  });
+
+  it('uses a custom admin role', async () => {
+    const { app, auth } = buildApp({ adminRole: 'staff' });
+    await request(app).post('/auth/register').send(adminCreds);
+    await auth.service.addRoleByEmail(adminCreds.email, 'staff');
+    const { body } = await request(app).post('/auth/login').send(adminCreds);
+    await request(app).get('/auth/admin/users').set(...bearer(body.accessToken)).expect(200);
+  });
+});
+
 describe('configuration', () => {
   it('fails fast on a bad adapter or weak secret', () => {
     assert.throws(() => createAuth({ adapter: {}, jwtSecret: 'x'.repeat(32) }), /missing methods/);

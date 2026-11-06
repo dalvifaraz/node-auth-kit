@@ -4,7 +4,7 @@ import { AuthError } from '../utils/errors.js';
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 const meta = (req) => ({ ip: req.ip, userAgent: req.get('user-agent') ?? null });
 
-export function createAuthRouter({ service, authenticate, rateLimiter }) {
+export function createAuthRouter({ service, authenticate, adminGuard, rateLimiter }) {
   const r = express.Router();
   r.use(express.json({ limit: '10kb' }));
   const limit = rateLimiter ?? ((_req, _res, next) => next());
@@ -57,6 +57,26 @@ export function createAuthRouter({ service, authenticate, rateLimiter }) {
   r.post('/verify-email', wrap(async (req, res) => {
     await service.verifyEmail(req.body ?? {});
     res.status(204).end();
+  }));
+
+  r.get('/admin/users', adminGuard, wrap(async (req, res) => {
+    res.json(await service.listUsers(req.query));
+  }));
+
+  r.get('/admin/users/:id', adminGuard, wrap(async (req, res) => {
+    res.json({ user: await service.me(req.params.id) });
+  }));
+
+  r.put('/admin/users/:id/roles', adminGuard, wrap(async (req, res) => {
+    res.json({ user: await service.setRoles(req.params.id, req.body?.roles, { actorId: req.auth.userId }) });
+  }));
+
+  r.post('/admin/users/:id/disable', adminGuard, wrap(async (req, res) => {
+    res.json({ user: await service.setDisabled(req.params.id, true, { actorId: req.auth.userId }) });
+  }));
+
+  r.post('/admin/users/:id/enable', adminGuard, wrap(async (req, res) => {
+    res.json({ user: await service.setDisabled(req.params.id, false, { actorId: req.auth.userId }) });
   }));
 
   // Error handler scoped to this router — consistent JSON error shape.
