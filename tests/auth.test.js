@@ -416,5 +416,7 @@ describe('configuration', () => {
   it('fails fast on a bad adapter or weak secret', () => {
     assert.throws(() => createAuth({ adapter: {}, jwtSecret: 'x'.repeat(32) }), /missing methods/);
     assert.throws(() => createAuth({ adapter: memoryAdapter(), jwtSecret: 'short' }), /at least 32/);
+    const placeholder = 'change-me-to-a-long-random-string-at-least-32-chars';
+    assert.throws(() => createAuth({ adapter: memoryAdapter(), jwtSecret: placeholder }), /placeholder/);
   });
 });

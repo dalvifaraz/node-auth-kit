@@ -31,6 +31,9 @@ export function createAuth(options = {}) {
   if (!options.jwtSecret || options.jwtSecret.length < 32) {
     throw new Error('createAuth: `jwtSecret` must be at least 32 characters');
   }
+  if (/change-?me/i.test(options.jwtSecret)) {
+    throw new Error('createAuth: `jwtSecret` is still a placeholder; generate one with the command in .env.example');
+  }
 
   if (options.requireVerifiedEmail && options.emailVerification === false) {
     throw new Error('createAuth: `requireVerifiedEmail` needs `emailVerification`');
