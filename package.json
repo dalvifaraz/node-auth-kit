@@ -15,7 +15,14 @@
     "dev": "node --watch examples/server.js",
     "test": "node --test"
   },
-  "keywords": ["auth", "authentication", "jwt", "express", "refresh-token", "reusable"],
+  "keywords": [
+    "auth",
+    "authentication",
+    "jwt",
+    "express",
+    "refresh-token",
+    "reusable"
+  ],
   "license": "MIT",
   "engines": {
     "node": ">=20"
@@ -30,11 +37,17 @@
     "pg": ">=8"
   },
   "peerDependenciesMeta": {
-    "mongodb": { "optional": true },
-    "pg": { "optional": true }
+    "mongodb": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "dotenv": "^16.4.5",
+    "mongodb": "^7.8.0",
+    "pg": "^8.23.1",
     "supertest": "^7.0.0"
   }
 }
