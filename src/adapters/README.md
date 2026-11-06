@@ -2,7 +2,7 @@
 
 The auth core never talks to a database directly. It only calls the methods below.
 To use a new database (MySQL, SQLite, Prisma, DynamoDB, Firestore…), write an object
-that implements these 9 async methods and pass it to `createAuth({ adapter })`.
+that implements these 10 async methods and pass it to `createAuth({ adapter })`.
 
 | Method | Receives | Returns |
 | --- | --- | --- |
@@ -15,13 +15,14 @@ that implements these 9 async methods and pass it to `createAuth({ adapter })`.
 | `consumeToken(tokenHash, type)` | hash, type | record or `null`; **must be atomic** |
 | `deleteToken(tokenHash)` | hash | anything |
 | `deleteUserTokens(userId, type)` | id, type | anything |
+| `deleteExpiredTokens()` | nothing | anything |
 
 Rules:
 - `email` must be unique (add a unique index). On a duplicate, `createUser` must throw `Errors.emailTaken()`.
 - `consumeToken` must find and delete in one atomic operation, so that concurrent calls with one token return the record exactly once.
 - Lookups by an id that is malformed for your database must return `null`, not throw.
 - Users must expose `id` (string-able). Mongo's `_id` is mapped to `id` in `mongoAdapter.js`.
-- `tokenHash` should be indexed/unique. Expired tokens can be cleaned up by a TTL index or a cron job.
+- `tokenHash` should be indexed/unique.
 - Optional: `init()` — create tables/indexes. Called by you, not by the core.
 
 Use `tests/adapterContract.js` to test your own adapter against the same suite.

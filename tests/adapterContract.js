@@ -75,6 +75,18 @@ export function runAdapterContract(name, makeAdapter) {
       assert.equal(await a.findToken(t2.tokenHash, 'refresh'), null);
     });
 
+    it('deletes only expired tokens', async () => {
+      const a = await makeAdapter();
+      const u = await newUser(a);
+      const expired = tokenFor(u, { expiresAt: new Date(Date.now() - 60000) });
+      const live = tokenFor(u);
+      await a.saveToken(expired);
+      await a.saveToken(live);
+      await a.deleteExpiredTokens();
+      assert.equal(await a.findToken(expired.tokenHash, 'refresh'), null);
+      assert.ok(await a.findToken(live.tokenHash, 'refresh'));
+    });
+
     it('consumes a token once, and only for its own type', async () => {
       const a = await makeAdapter();
       const rec = tokenFor(await newUser(a));

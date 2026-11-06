@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS auth_tokens (
   meta       JSONB NOT NULL DEFAULT '{}'::jsonb
 );
 CREATE INDEX IF NOT EXISTS auth_tokens_user_type_idx ON auth_tokens (user_id, type);
+CREATE INDEX IF NOT EXISTS auth_tokens_expires_idx ON auth_tokens (expires_at);
 `;
 
 export function postgresAdapter({ pool }) {
@@ -130,6 +131,9 @@ export function postgresAdapter({ pool }) {
     },
     async deleteToken(tokenHash) {
       await q('DELETE FROM auth_tokens WHERE token_hash = $1', [tokenHash]);
+    },
+    async deleteExpiredTokens() {
+      await q('DELETE FROM auth_tokens WHERE expires_at < now()');
     },
     async deleteUserTokens(userId, type) {
       if (!isUuid(userId)) return;

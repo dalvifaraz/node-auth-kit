@@ -43,6 +43,10 @@ export function memoryAdapter() {
     async deleteToken(tokenHash) {
       tokens.delete(tokenHash);
     },
+    async deleteExpiredTokens() {
+      const now = Date.now();
+      for (const [k, t] of tokens) if (new Date(t.expiresAt).getTime() < now) tokens.delete(k);
+    },
     async deleteUserTokens(userId, type) {
       for (const [k, t] of tokens) if (t.userId === String(userId) && t.type === type) tokens.delete(k);
     },

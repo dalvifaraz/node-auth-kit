@@ -412,6 +412,18 @@ describe('email and hook failures', () => {
   });
 });
 
+describe('token cleanup', () => {
+  it('removes expired tokens on a schedule', async () => {
+    const adapter = memoryAdapter();
+    const { app } = buildApp({ adapter, tokenCleanupIntervalMs: 10 });
+    const { body } = await request(app).post('/auth/register').send(creds);
+    const expired = { userId: body.user.id, tokenHash: 'expired', type: 'refresh', expiresAt: new Date(Date.now() - 1000), meta: {} };
+    await adapter.saveToken(expired);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.equal(await adapter.findToken('expired', 'refresh'), null);
+  });
+});
+
 describe('configuration', () => {
   it('fails fast on a bad adapter or weak secret', () => {
     assert.throws(() => createAuth({ adapter: {}, jwtSecret: 'x'.repeat(32) }), /missing methods/);
