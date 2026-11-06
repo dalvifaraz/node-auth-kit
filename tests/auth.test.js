@@ -104,6 +104,14 @@ describe('auth flow', () => {
   });
 });
 
+describe('concurrency', () => {
+  it('returns 409 to the losers of a concurrent register', async () => {
+    const { app } = buildApp();
+    const results = await Promise.all([1, 2, 3].map(() => request(app).post('/auth/register').send(creds)));
+    assert.deepEqual(results.map((r) => r.status).sort(), [201, 409, 409]);
+  });
+});
+
 describe('email verification', () => {
   it('blocks login until verified when required', async () => {
     const { app, sent } = buildApp({ emailVerification: true, requireVerifiedEmail: true });

@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { Errors } from '../utils/errors.js';
 
 /** In-memory adapter — for tests, demos and prototyping. Data is lost on restart. */
 export function memoryAdapter() {
@@ -8,6 +9,7 @@ export function memoryAdapter() {
 
   return {
     async createUser(data) {
+      for (const u of users.values()) if (u.email === data.email) throw Errors.emailTaken();
       const user = { id: crypto.randomUUID(), ...data };
       users.set(user.id, user);
       return clone(user);

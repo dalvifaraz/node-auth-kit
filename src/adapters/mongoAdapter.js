@@ -6,6 +6,10 @@
  *   const adapter = mongoAdapter({ db: client.db('myapp') });
  *   await adapter.init(); // indexes
  */
+import { Errors } from '../utils/errors.js';
+
+const DUPLICATE_KEY = 11000;
+
 export function mongoAdapter({ db, usersCollection = 'users', tokensCollection = 'auth_tokens', ObjectId }) {
   const users = db.collection(usersCollection);
   const tokens = db.collection(tokensCollection);
@@ -30,8 +34,12 @@ export function mongoAdapter({ db, usersCollection = 'users', tokensCollection =
       await tokens.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // auto-cleanup
     },
     async createUser(data) {
-      const { insertedId } = await users.insertOne({ ...data });
-      return map({ _id: insertedId, ...data });
+      try {
+        const { insertedId } = await users.insertOne({ ...data });
+        return map({ _id: insertedId, ...data });
+      } catch (err) {
+        throw err?.code === DUPLICATE_KEY ? Errors.emailTaken() : err;
+      }
     },
     async findUserByEmail(email) {
       return map(await users.findOne({ email }));

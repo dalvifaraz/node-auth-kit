@@ -30,6 +30,19 @@ export function runAdapterContract(name, makeAdapter) {
       assert.equal(await a.findUserById('not-a-valid-id'), null);
     });
 
+    it('rejects a duplicate email with EMAIL_TAKEN', async () => {
+      const a = await makeAdapter();
+      const u = await newUser(a);
+      await assert.rejects(newUser(a, { email: u.email }), { code: 'EMAIL_TAKEN' });
+    });
+
+    it('allows only one of several concurrent creates for an email', async () => {
+      const a = await makeAdapter();
+      const email = `${uid()}@test.dev`;
+      const results = await Promise.allSettled([1, 2, 3].map(() => newUser(a, { email })));
+      assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
+    });
+
     it('updates users', async () => {
       const a = await makeAdapter();
       const u = await newUser(a);
