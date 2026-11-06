@@ -58,7 +58,7 @@ export function mongoAdapter({ db, usersCollection = 'users', tokensCollection =
       const _id = await toId(id);
       if (!_id) return null;
       const res = await users.findOneAndUpdate({ _id }, { $set: fields }, { returnDocument: 'after' });
-      return map(res?.value ?? res);
+      return map(res);
     },
     async saveToken(record) {
       await tokens.insertOne({ ...record });

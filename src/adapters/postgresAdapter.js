@@ -6,7 +6,7 @@
  *   const adapter = postgresAdapter({ pool });
  *   await adapter.init(); // creates tables if missing (or run the SQL in a migration)
  *
- * Works with any Postgres-compatible DB (Supabase, Neon, RDS, CockroachDB*).
+ * Works with hosted Postgres such as Supabase, Neon and RDS (Postgres 13 or newer).
  */
 import { Errors } from '../utils/errors.js';
 

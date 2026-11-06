@@ -44,7 +44,7 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
     await runHook('sendVerificationEmail', { user: toPublicUser(user), token });
   }
 
-  async function register({ email, password, name, ...extra }) {
+  async function register({ email, password, name, ...extra }, meta = {}) {
     const normalized = normalizeEmail(email);
     checkPassword(password);
     checkName(name);
@@ -67,7 +67,7 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
     await runHook('onRegister', toPublicUser(user));
 
     if (config.requireVerifiedEmail) return { user: toPublicUser(user) };
-    return { user: toPublicUser(user), ...(await tokens.issueTokenPair(user)) };
+    return { user: toPublicUser(user), ...(await tokens.issueTokenPair(user, meta)) };
   }
 
   async function login({ email, password }, meta = {}) {
