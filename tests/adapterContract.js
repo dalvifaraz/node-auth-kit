@@ -67,5 +67,22 @@ export function runAdapterContract(name, makeAdapter) {
       assert.equal(await a.findToken(t1.tokenHash, 'refresh'), null);
       assert.equal(await a.findToken(t2.tokenHash, 'refresh'), null);
     });
+
+    it('consumes a token once, and only for its own type', async () => {
+      const a = await makeAdapter();
+      const rec = tokenFor(await newUser(a));
+      await a.saveToken(rec);
+      assert.equal(await a.consumeToken(rec.tokenHash, 'password_reset'), null);
+      assert.equal((await a.consumeToken(rec.tokenHash, 'refresh')).userId, rec.userId);
+      assert.equal(await a.consumeToken(rec.tokenHash, 'refresh'), null);
+    });
+
+    it('lets exactly one concurrent consume win', async () => {
+      const a = await makeAdapter();
+      const rec = tokenFor(await newUser(a));
+      await a.saveToken(rec);
+      const results = await Promise.all(Array.from({ length: 5 }, () => a.consumeToken(rec.tokenHash, 'refresh')));
+      assert.equal(results.filter(Boolean).length, 1);
+    });
   });
 }

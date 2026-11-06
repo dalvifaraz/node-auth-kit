@@ -105,6 +105,15 @@ describe('auth flow', () => {
 });
 
 describe('concurrency', () => {
+  it('lets only one concurrent refresh win', async () => {
+    const { app } = buildApp();
+    const { body } = await request(app).post('/auth/register').send(creds);
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () => request(app).post('/auth/refresh').send({ refreshToken: body.refreshToken }))
+    );
+    assert.equal(results.filter((r) => r.status === 200).length, 1);
+  });
+
   it('returns 409 to the losers of a concurrent register', async () => {
     const { app } = buildApp();
     const results = await Promise.all([1, 2, 3].map(() => request(app).post('/auth/register').send(creds)));

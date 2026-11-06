@@ -43,10 +43,8 @@ export function createTokenService({ adapter, config }) {
   /** Validate + delete (single use). Returns the stored record. */
   async function consumeOpaqueToken(raw, type) {
     if (!raw || typeof raw !== 'string') throw Errors.invalidToken();
-    const tokenHash = sha256(raw);
-    const record = await adapter.findToken(tokenHash, type);
+    const record = await adapter.consumeToken(sha256(raw), type);
     if (!record) throw Errors.invalidToken();
-    await adapter.deleteToken(tokenHash);
     if (new Date(record.expiresAt).getTime() < Date.now()) throw Errors.invalidToken();
     return record;
   }

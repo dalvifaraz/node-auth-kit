@@ -34,6 +34,12 @@ export function memoryAdapter() {
       const t = tokens.get(tokenHash);
       return t && t.type === type ? clone(t) : null;
     },
+    async consumeToken(tokenHash, type) {
+      const t = tokens.get(tokenHash);
+      if (!t || t.type !== type) return null;
+      tokens.delete(tokenHash);
+      return clone(t);
+    },
     async deleteToken(tokenHash) {
       tokens.delete(tokenHash);
     },
