@@ -16,7 +16,8 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
     .filter((field) => !PRIVATE_FIELDS.includes(field));
 
   /** Only allowlisted fields ever reach the client. */
-  const toPublicUser = (user) => (user ? { ...pick(user, publicFields), id: String(user.id) } : null);
+  const toPublicUser = (user) =>
+    user ? { ...pick(user, publicFields), id: String(user.id), hasPassword: Boolean(user.passwordHash) } : null;
 
   const checkPassword = (password) => {
     const problem = config.passwordPolicy(password);
@@ -133,6 +134,7 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
   async function changePassword(userId, { currentPassword, newPassword }) {
     const user = await adapter.findUserById(userId);
     if (!user) throw Errors.notFound('User not found');
+    if (!user.passwordHash) throw Errors.validation('This account has no password yet. Use forgot password to set one.');
     const candidate = typeof currentPassword === 'string' ? currentPassword : '';
     if (!(await verifyPassword(candidate, user.passwordHash))) {
       throw Errors.invalidCredentials();

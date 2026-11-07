@@ -30,7 +30,7 @@ export const POSTGRES_SCHEMA = `
 CREATE TABLE IF NOT EXISTS auth_users (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email          TEXT NOT NULL UNIQUE,
-  password_hash  TEXT NOT NULL,
+  password_hash  TEXT,
   name           TEXT,
   roles          TEXT[] NOT NULL DEFAULT '{}',
   email_verified BOOLEAN NOT NULL DEFAULT FALSE,
@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS auth_users (
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE auth_users ALTER COLUMN password_hash DROP NOT NULL;
 ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS disabled BOOLEAN NOT NULL DEFAULT FALSE;
 CREATE TABLE IF NOT EXISTS auth_tokens (

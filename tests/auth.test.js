@@ -916,6 +916,32 @@ describe('jwt secret rotation', () => {
   });
 });
 
+describe('accounts without a password', () => {
+  async function passwordless() {
+    const ctx = buildApp();
+    const { body } = await request(ctx.app).post('/auth/register').send(creds);
+    await ctx.auth.service.setDisabled(body.user.id, false);
+    const adapterUser = await ctx.auth.service.me(body.user.id);
+    return { ...ctx, body, adapterUser };
+  }
+
+  it('reports hasPassword', async () => {
+    const { body } = await passwordless();
+    assert.equal(body.user.hasPassword, true);
+  });
+
+  it('points change-password to forgot-password', async () => {
+    const adapter = memoryAdapter();
+    const { app } = buildApp({ adapter });
+    const { body } = await request(app).post('/auth/register').send(creds);
+    await adapter.updateUser(body.user.id, { passwordHash: null });
+    const res = await request(app).post('/auth/change-password').set(...bearer(body.accessToken))
+      .send({ currentPassword: '', newPassword: 'chosen123' }).expect(400);
+    assert.match(res.body.error.message, /forgot password/);
+    await request(app).post('/auth/login').send(creds).expect(401);
+  });
+});
+
 describe('configuration', () => {
   it('fails fast on a bad adapter or weak secret', () => {
     assert.throws(() => createAuth({ adapter: {}, jwtSecret: 'x'.repeat(32) }), /missing methods/);

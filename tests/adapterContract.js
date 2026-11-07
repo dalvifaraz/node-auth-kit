@@ -99,6 +99,12 @@ export function runAdapterContract(name, makeAdapter) {
       assert.equal((await a.findUserByEmail(moved)).id, String(u.id));
     });
 
+    it('stores a user without a password', async () => {
+      const a = await makeAdapter();
+      const u = await newUser(a, { passwordHash: null });
+      assert.equal((await a.findUserById(u.id)).passwordHash, null);
+    });
+
     it('updates users', async () => {
       const a = await makeAdapter();
       const u = await newUser(a);
