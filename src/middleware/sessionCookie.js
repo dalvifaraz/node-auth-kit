@@ -2,7 +2,7 @@ import { Errors } from '../utils/errors.js';
 
 const SAME_SITE_VALUES = ['strict', 'lax', 'none'];
 
-function parseCookies(header = '') {
+export function parseCookies(header = '') {
   const cookies = {};
   for (const part of header.split(';')) {
     const index = part.indexOf('=');

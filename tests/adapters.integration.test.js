@@ -97,6 +97,32 @@ function runAuthFlows(name, adapter) {
       await request(app).post('/auth/login').send(memberCreds).expect(200);
     });
 
+    it('signs in with a provider, linking and reclaiming accounts', async () => {
+      const { app, auth } = build();
+      const creds = newCreds();
+      const squatter = await request(app).post('/auth/register').send(creds);
+      const profile = { provider: 'google', id: crypto.randomUUID(), email: creds.email, emailVerified: true, name: 'Jane' };
+      const user = await auth.service.signInWithProvider(profile);
+      assert.equal(user.id, squatter.body.user.id);
+      assert.equal(user.hasPassword, false);
+      await request(app).post('/auth/login').send(creds).expect(401);
+      await request(app).get('/private').set(...bearer(squatter.body.accessToken)).expect(401);
+
+      const again = await auth.service.signInWithProvider({ ...profile, email: 'changed-at-provider@example.com' });
+      assert.equal(again.id, user.id);
+      const code = await auth.service.createLoginCode(user.id);
+      const res = await request(app).post('/auth/oauth/exchange').send({ code });
+      assert.equal(res.status, 404, 'exchange route needs the oauth option');
+      const session = await auth.service.exchangeLoginCode(code);
+      await request(app).get('/private').set(...bearer(session.accessToken)).expect(200);
+      await assert.rejects(auth.service.exchangeLoginCode(code), { code: 'INVALID_TOKEN' });
+
+      const fresh = await auth.service.signInWithProvider({ provider: 'github', id: crypto.randomUUID(), email: newCreds().email, emailVerified: true });
+      assert.equal(fresh.emailVerified, true);
+      await request(app).delete('/auth/me').set(...bearer((await auth.service.exchangeLoginCode(await auth.service.createLoginCode(fresh.id))).accessToken))
+        .send({ confirmEmail: fresh.email }).expect(204);
+    });
+
     it('resets a password and revokes old access tokens', async () => {
       const { app, sent } = build();
       const creds = newCreds();

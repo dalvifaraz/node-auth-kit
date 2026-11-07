@@ -8,6 +8,7 @@ export const TOKEN_TYPES = {
   PASSWORD_RESET: 'password_reset',
   EMAIL_VERIFY: 'email_verify',
   EMAIL_CHANGE: 'email_change',
+  LOGIN_CODE: 'login_code', // one-time code handed to the app after provider sign-in
 };
 
 export function createTokenService({ adapter, config }) {

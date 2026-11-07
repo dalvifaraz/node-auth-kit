@@ -1,10 +1,11 @@
 import express from 'express';
 import { AuthError } from '../utils/errors.js';
+import { addOAuthRoutes } from './oauthRoutes.js';
 
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 const meta = (req) => ({ ip: req.ip, userAgent: req.get('user-agent') ?? null });
 
-export function createAuthRouter({ service, authenticate, adminGuard, rateLimiter, cookies }) {
+export function createAuthRouter({ service, authenticate, adminGuard, rateLimiter, cookies, oauth }) {
   const r = express.Router();
   r.use(express.json({ limit: '10kb' }));
   const limit = rateLimiter ?? ((_req, _res, next) => next());
@@ -119,6 +120,8 @@ export function createAuthRouter({ service, authenticate, adminGuard, rateLimite
     await service.deleteUser(req.params.id, { actorId: req.auth.userId });
     res.status(204).end();
   }));
+
+  if (oauth) addOAuthRoutes(r, { oauth, service, limit, wrap, sendSession, wantsCookie, meta });
 
   // Error handler scoped to this router — consistent JSON error shape.
   // eslint-disable-next-line no-unused-vars

@@ -255,6 +255,67 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
     await runHook('sendEmailChangedNotice', { user: toPublicUser(user), newEmail });
   }
 
+  /**
+   * Finds or creates the user behind a provider sign-in. The provider must have verified the email.
+   * An existing unverified account with that email loses its password and sessions, because whoever
+   * registered it never proved they own the address.
+   */
+  async function signInWithProvider({ provider, id, email, emailVerified, name }, meta = {}) {
+    if (!id || !email || emailVerified !== true) throw Errors.emailNotVerified();
+    const providerUserId = String(id);
+    let user = null;
+    let created = false;
+
+    const linkedId = await adapter.findUserIdByIdentity(provider, providerUserId);
+    if (linkedId) user = await adapter.findUserById(linkedId);
+    if (!user) {
+      user = await adapter.findUserByEmail(normalizeEmail(email));
+      if (user && !user.emailVerified) {
+        await adapter.updateUser(user.id, { passwordHash: null, emailVerified: true, updatedAt: new Date() });
+        await revokeSessions(user.id);
+        user = await adapter.findUserById(user.id);
+      }
+      if (!user) {
+        user = await adapter.createUser({
+          email: normalizeEmail(email),
+          passwordHash: null,
+          name: typeof name === 'string' ? name.slice(0, 100) : null,
+          roles: [...config.defaultRoles],
+          emailVerified: true,
+          tokenVersion: 0,
+          disabled: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+        created = true;
+      }
+      try {
+        await adapter.linkIdentity({ userId: String(user.id), provider, providerUserId });
+      } catch (err) {
+        if (err?.code !== 'IDENTITY_TAKEN') throw err;
+        // A parallel sign-in linked it first, so use that account.
+        if (created) await adapter.deleteUser(user.id);
+        created = false;
+        user = await adapter.findUserById(await adapter.findUserIdByIdentity(provider, providerUserId));
+      }
+    }
+
+    assertCanSignIn(user);
+    if (created) await runHook('onRegister', toPublicUser(user));
+    await runHook('onLogin', toPublicUser(user), meta);
+    return toPublicUser(user);
+  }
+
+  const createLoginCode = (userId) => tokens.issueOpaqueToken(userId, TOKEN_TYPES.LOGIN_CODE, 60 * 1000);
+
+  async function exchangeLoginCode(code, meta = {}) {
+    const record = await tokens.consumeOpaqueToken(code, TOKEN_TYPES.LOGIN_CODE);
+    const user = await adapter.findUserById(record.userId);
+    if (!user) throw Errors.invalidToken();
+    assertCanSignIn(user);
+    return { user: toPublicUser(user), ...(await tokens.issueTokenPair(user, meta)) };
+  }
+
   /** Removes the user and all of their tokens, then lets the app clean up its own data. */
   async function removeUser(user) {
     await adapter.deleteUser(user.id);
@@ -285,7 +346,7 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
     register, login, refresh, logout, logoutAll, me,
     changePassword, forgotPassword, resetPassword, verifyEmail, resendVerification,
     listUsers, setRoles, setDisabled, addRoleByEmail, deleteAccount, deleteUser,
-    requestEmailChange, confirmEmailChange,
+    requestEmailChange, confirmEmailChange, signInWithProvider, createLoginCode, exchangeLoginCode,
   };
 }
 

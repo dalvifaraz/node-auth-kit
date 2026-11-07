@@ -5,6 +5,8 @@ import { createRateLimiter } from './middleware/rateLimit.js';
 import { createSessionCookie } from './middleware/sessionCookie.js';
 import { createEmailHooks, emailConfigFromEnv } from './services/mailer.js';
 import { createAuthRouter } from './routes/authRoutes.js';
+import { createOAuth } from './routes/oauthRoutes.js';
+import { oauthConfigFromEnv } from './services/oauthProviders.js';
 import { defaultPasswordPolicy } from './utils/validate.js';
 import { AuthError } from './utils/errors.js';
 
@@ -30,6 +32,7 @@ const DAY = 24 * HOUR;
  * @param {string}  options.jwtSecret      Secret for signing access tokens (min 32 chars)
  * @param {object} [options.email]         Built-in email settings (see src/services/mailer.js)
  * @param {object|boolean} [options.cookie] Cookie login settings (see src/middleware/sessionCookie.js)
+ * @param {object} [options.oauth]         Google, GitHub and other sign-in (see src/routes/oauthRoutes.js)
  * @param {object} [options.hooks]         { sendPasswordResetEmail, sendVerificationEmail, onRegister, onLogin }
  * @returns {{ router, authenticate, requireRoles, service, tokens, errorHandler }}
  */
@@ -107,7 +110,8 @@ export function createAuth(options = {}) {
   // Admin routes always check the database, so a removed admin loses access immediately.
   const adminGuard = [createAuthenticate(tokens, adapter), requireRoles(config.adminRole)];
   const cookies = createSessionCookie(options.cookie, config.refreshTokenTtlMs);
-  const router = createAuthRouter({ service, authenticate, adminGuard, rateLimiter, cookies });
+  const oauth = createOAuth(options.oauth, config.jwtSecret);
+  const router = createAuthRouter({ service, authenticate, adminGuard, rateLimiter, cookies, oauth });
 
   /** Mount in your app after your routes so `authenticate` errors return JSON. */
   // eslint-disable-next-line no-unused-vars
@@ -121,5 +125,5 @@ export function createAuth(options = {}) {
   return { router, authenticate, requireRoles, service, tokens, errorHandler };
 }
 
-export { AuthError, requireRoles, defaultPasswordPolicy, createRateLimiter, emailConfigFromEnv };
+export { AuthError, requireRoles, defaultPasswordPolicy, createRateLimiter, emailConfigFromEnv, oauthConfigFromEnv };
 export { memoryAdapter } from './adapters/memoryAdapter.js';
