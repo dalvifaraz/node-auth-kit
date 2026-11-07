@@ -68,6 +68,11 @@ export function mongoAdapter({ db, usersCollection = 'users', tokensCollection =
       ]);
       return { users: docs.map(map), total };
     },
+    async deleteUser(id) {
+      const _id = await toId(id);
+      if (_id) await users.deleteOne({ _id });
+      await tokens.deleteMany({ userId: String(id) });
+    },
     async saveToken(record) {
       await tokens.insertOne({ ...record });
     },

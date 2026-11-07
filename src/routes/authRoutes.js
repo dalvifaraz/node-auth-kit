@@ -54,6 +54,12 @@ export function createAuthRouter({ service, authenticate, adminGuard, rateLimite
     res.json({ user: await service.me(req.auth.userId) });
   }));
 
+  r.delete('/me', authenticate, limit, wrap(async (req, res) => {
+    await service.deleteAccount(req.auth.userId, req.body ?? {});
+    cookies?.clear(req, res);
+    res.status(204).end();
+  }));
+
   r.post('/change-password', authenticate, limit, wrap(async (req, res) => {
     const session = await service.changePassword(req.auth.userId, req.body ?? {});
     sendSession(req, res, session, { useCookie: cookies?.read(req) !== undefined });
@@ -97,6 +103,11 @@ export function createAuthRouter({ service, authenticate, adminGuard, rateLimite
 
   r.post('/admin/users/:id/enable', adminGuard, wrap(async (req, res) => {
     res.json({ user: await service.setDisabled(req.params.id, false, { actorId: req.auth.userId }) });
+  }));
+
+  r.delete('/admin/users/:id', adminGuard, wrap(async (req, res) => {
+    await service.deleteUser(req.params.id, { actorId: req.auth.userId });
+    res.status(204).end();
   }));
 
   // Error handler scoped to this router — consistent JSON error shape.

@@ -73,6 +73,23 @@ export function runAdapterContract(name, makeAdapter) {
       assert.equal((await a.listUsers({ limit: 5, offset: 0, search: `x${tag}` })).total, 0);
     });
 
+    it('deletes a user with all of their tokens', async () => {
+      const a = await makeAdapter();
+      const u = await newUser(a);
+      const keep = await newUser(a);
+      const [refresh, reset, other] = [tokenFor(u), tokenFor(u, { type: 'password_reset' }), tokenFor(keep)];
+      for (const t of [refresh, reset, other]) await a.saveToken(t);
+      await a.deleteUser(u.id);
+      assert.equal(await a.findUserById(u.id), null);
+      assert.equal(await a.findUserByEmail(u.email), null);
+      assert.equal(await a.findToken(refresh.tokenHash, 'refresh'), null);
+      assert.equal(await a.findToken(reset.tokenHash, 'password_reset'), null);
+      assert.ok(await a.findToken(other.tokenHash, 'refresh'));
+      assert.ok(await a.findUserById(keep.id));
+      await a.deleteUser(u.id);
+      await a.deleteUser('not-a-valid-id');
+    });
+
     it('updates users', async () => {
       const a = await makeAdapter();
       const u = await newUser(a);

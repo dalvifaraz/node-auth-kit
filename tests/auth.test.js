@@ -778,6 +778,41 @@ describe('built-in email', () => {
   });
 });
 
+describe('account deletion', () => {
+  it('lets users delete themselves after confirming their password', async () => {
+    const deleted = [];
+    const { app } = buildApp({ hooks: { onUserDeleted: (user) => { deleted.push(user.email); } } });
+    const { body } = await request(app).post('/auth/register').send(creds);
+    await request(app).delete('/auth/me').set(...bearer(body.accessToken)).send({ password: 'wrong1234' }).expect(401);
+    await request(app).delete('/auth/me').set(...bearer(body.accessToken)).send({ password: creds.password }).expect(204);
+    assert.deepEqual(deleted, ['jane@example.com']);
+    await request(app).get('/private').set(...bearer(body.accessToken)).expect(401);
+    await request(app).post('/auth/refresh').send({ refreshToken: body.refreshToken }).expect(401);
+    await request(app).post('/auth/login').send(creds).expect(401);
+    await request(app).post('/auth/register').send(creds).expect(201);
+  });
+
+  it('clears the session cookie', async () => {
+    const { app } = buildApp({ cookie: true });
+    const { body } = await request(app).post('/auth/register').send(creds);
+    const res = await request(app).delete('/auth/me').set(...bearer(body.accessToken)).send({ password: creds.password }).expect(204);
+    assert.match(res.headers['set-cookie'][0], /Expires=Thu, 01 Jan 1970/);
+  });
+
+  it('lets admins delete other accounts, but not their own', async () => {
+    const { app, auth } = buildApp();
+    await request(app).post('/auth/register').send({ email: 'boss@example.com', password: 'secret123' });
+    const boss = await auth.service.addRoleByEmail('boss@example.com', 'admin');
+    const { body: admin } = await request(app).post('/auth/login').send({ email: 'boss@example.com', password: 'secret123' });
+    const { body: member } = await request(app).post('/auth/register').send(creds);
+    await request(app).delete('/auth/admin/users/' + member.user.id).set(...bearer(member.accessToken)).expect(403);
+    await request(app).delete('/auth/admin/users/' + member.user.id).set(...bearer(admin.accessToken)).expect(204);
+    await request(app).delete('/auth/admin/users/' + member.user.id).set(...bearer(admin.accessToken)).expect(404);
+    await request(app).delete('/auth/admin/users/' + boss.id).set(...bearer(admin.accessToken)).expect(400);
+    await request(app).post('/auth/login').send(creds).expect(401);
+  });
+});
+
 describe('configuration', () => {
   it('fails fast on a bad adapter or weak secret', () => {
     assert.throws(() => createAuth({ adapter: {}, jwtSecret: 'x'.repeat(32) }), /missing methods/);

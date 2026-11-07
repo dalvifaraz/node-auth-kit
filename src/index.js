@@ -9,7 +9,7 @@ import { defaultPasswordPolicy } from './utils/validate.js';
 import { AuthError } from './utils/errors.js';
 
 const REQUIRED_ADAPTER_METHODS = [
-  'createUser', 'findUserByEmail', 'findUserById', 'updateUser', 'listUsers',
+  'createUser', 'findUserByEmail', 'findUserById', 'updateUser', 'listUsers', 'deleteUser',
   'saveToken', 'findToken', 'consumeToken', 'deleteToken', 'deleteUserTokens', 'deleteExpiredTokens',
 ];
 

@@ -27,6 +27,10 @@ export function memoryAdapter() {
       Object.assign(u, fields);
       return clone(u);
     },
+    async deleteUser(id) {
+      users.delete(String(id));
+      for (const [k, t] of tokens) if (t.userId === String(id)) tokens.delete(k);
+    },
     async listUsers({ limit, offset, search }) {
       const matches = [...users.values()]
         .filter((u) => !search || u.email.includes(search))

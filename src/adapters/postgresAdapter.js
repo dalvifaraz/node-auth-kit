@@ -120,6 +120,10 @@ export function postgresAdapter({ pool }) {
       const { rows } = await q(`UPDATE auth_users SET ${sets.join(', ')} WHERE id = $1::uuid RETURNING *`, params);
       return mapUser(rows[0]);
     },
+    async deleteUser(id) {
+      if (!isUuid(id)) return;
+      await q('DELETE FROM auth_users WHERE id = $1::uuid', [String(id)]); // tokens go with it (ON DELETE CASCADE)
+    },
     async listUsers({ limit, offset, search }) {
       const where = search ? 'WHERE email LIKE $1' : '';
       const filter = search ? [`%${search.replace(/[\\%_]/g, '\\$&')}%`] : [];

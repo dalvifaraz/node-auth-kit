@@ -225,10 +225,36 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
     return toPublicUser(await adapter.findUserById(user.id));
   }
 
+  /** Removes the user and all of their tokens, then lets the app clean up its own data. */
+  async function removeUser(user) {
+    await adapter.deleteUser(user.id);
+    await runHook('onUserDeleted', toPublicUser(user));
+  }
+
+  /** Self-service deletion. Needs the password, or for an account without one, the email typed out. */
+  async function deleteAccount(userId, { password, confirmEmail } = {}) {
+    const user = await adapter.findUserById(userId);
+    if (!user) throw Errors.notFound('User not found');
+    if (user.passwordHash) {
+      const candidate = typeof password === 'string' ? password : '';
+      if (!(await verifyPassword(candidate, user.passwordHash))) throw Errors.invalidCredentials();
+    } else if (typeof confirmEmail !== 'string' || confirmEmail.trim().toLowerCase() !== user.email) {
+      throw Errors.validation('Type your email address to confirm');
+    }
+    await removeUser(user);
+  }
+
+  async function deleteUser(userId, { actorId } = {}) {
+    if (String(userId) === String(actorId)) throw Errors.validation('You cannot delete your own account here');
+    const user = await adapter.findUserById(userId);
+    if (!user) throw Errors.notFound('User not found');
+    await removeUser(user);
+  }
+
   return {
     register, login, refresh, logout, logoutAll, me,
     changePassword, forgotPassword, resetPassword, verifyEmail, resendVerification,
-    listUsers, setRoles, setDisabled, addRoleByEmail,
+    listUsers, setRoles, setDisabled, addRoleByEmail, deleteAccount, deleteUser,
   };
 }
 
