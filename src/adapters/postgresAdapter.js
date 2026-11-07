@@ -117,8 +117,12 @@ export function postgresAdapter({ pool }) {
         sets.push(`profile = profile || $${params.length}::jsonb`);
       }
       if (!sets.length) return this.findUserById(id);
-      const { rows } = await q(`UPDATE auth_users SET ${sets.join(', ')} WHERE id = $1::uuid RETURNING *`, params);
-      return mapUser(rows[0]);
+      try {
+        const { rows } = await q(`UPDATE auth_users SET ${sets.join(', ')} WHERE id = $1::uuid RETURNING *`, params);
+        return mapUser(rows[0]);
+      } catch (err) {
+        throw err?.code === UNIQUE_VIOLATION ? Errors.emailTaken() : err;
+      }
     },
     async deleteUser(id) {
       if (!isUuid(id)) return;

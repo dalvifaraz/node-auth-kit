@@ -15,5 +15,7 @@ export const Errors = {
   forbidden: (msg = 'Forbidden') => new AuthError(msg, 403, 'FORBIDDEN'),
   accountDisabled: () => new AuthError('This account has been disabled', 403, 'ACCOUNT_DISABLED'),
   invalidToken: (msg = 'Invalid or expired token') => new AuthError(msg, 401, 'INVALID_TOKEN'),
+  notAvailable: (msg) => new AuthError(msg, 501, 'NOT_AVAILABLE'),
+  tooManyRequests: (msg = 'Too many requests, try again later') => new AuthError(msg, 429, 'RATE_LIMITED'),
   notFound: (msg = 'Not found') => new AuthError(msg, 404, 'NOT_FOUND'),
 };

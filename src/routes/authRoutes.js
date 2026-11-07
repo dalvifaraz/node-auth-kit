@@ -60,6 +60,16 @@ export function createAuthRouter({ service, authenticate, adminGuard, rateLimite
     res.status(204).end();
   }));
 
+  r.post('/change-email', authenticate, limit, wrap(async (req, res) => {
+    await service.requestEmailChange(req.auth.userId, req.body ?? {});
+    res.json({ message: 'A confirmation link has been sent to the new address.' });
+  }));
+
+  r.post('/confirm-email-change', limit, wrap(async (req, res) => {
+    await service.confirmEmailChange(req.body ?? {});
+    res.status(204).end();
+  }));
+
   r.post('/change-password', authenticate, limit, wrap(async (req, res) => {
     const session = await service.changePassword(req.auth.userId, req.body ?? {});
     sendSession(req, res, session, { useCookie: cookies?.read(req) !== undefined });

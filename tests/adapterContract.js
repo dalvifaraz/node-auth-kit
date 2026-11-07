@@ -90,6 +90,15 @@ export function runAdapterContract(name, makeAdapter) {
       await a.deleteUser('not-a-valid-id');
     });
 
+    it('refuses to change an email to one already taken', async () => {
+      const a = await makeAdapter();
+      const [u, other] = [await newUser(a), await newUser(a)];
+      await assert.rejects(a.updateUser(u.id, { email: other.email }), { code: 'EMAIL_TAKEN' });
+      const moved = `${uid()}@test.dev`;
+      await a.updateUser(u.id, { email: moved });
+      assert.equal((await a.findUserByEmail(moved)).id, String(u.id));
+    });
+
     it('updates users', async () => {
       const a = await makeAdapter();
       const u = await newUser(a);

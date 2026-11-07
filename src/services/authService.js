@@ -225,6 +225,34 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
     return toPublicUser(await adapter.findUserById(user.id));
   }
 
+  async function requestEmailChange(userId, { password, newEmail } = {}) {
+    if (!hooks.sendEmailChangeEmail) throw Errors.notAvailable('Changing email is not set up');
+    const user = await adapter.findUserById(userId);
+    if (!user) throw Errors.notFound('User not found');
+    if (!user.passwordHash) throw Errors.validation('Set a password first, using forgot password');
+    const candidate = typeof password === 'string' ? password : '';
+    if (!(await verifyPassword(candidate, user.passwordHash))) throw Errors.invalidCredentials();
+    const email = normalizeEmail(newEmail);
+    if (email === user.email) throw Errors.validation('That is already your email address');
+    if (await adapter.findUserByEmail(email)) throw Errors.emailTaken();
+    if (isCoolingDown('change', user.id)) throw Errors.tooManyRequests('Please wait a minute before asking again');
+    await tokens.revokeAllForUser(user.id, TOKEN_TYPES.EMAIL_CHANGE);
+    const token = await tokens.issueOpaqueToken(user.id, TOKEN_TYPES.EMAIL_CHANGE, config.verifyTokenTtlMs, { newEmail: email });
+    await runHook('sendEmailChangeEmail', { user: toPublicUser(user), newEmail: email, token });
+  }
+
+  /** Applies a change confirmed from the new address, then ends every session. */
+  async function confirmEmailChange({ token } = {}) {
+    const record = await tokens.consumeOpaqueToken(token, TOKEN_TYPES.EMAIL_CHANGE);
+    const user = await adapter.findUserById(record.userId);
+    if (!user) throw Errors.invalidToken();
+    const { newEmail } = record.meta;
+    await adapter.updateUser(user.id, { email: newEmail, emailVerified: true, updatedAt: new Date() });
+    await tokens.revokeAllForUser(user.id, TOKEN_TYPES.PASSWORD_RESET);
+    await revokeSessions(user.id);
+    await runHook('sendEmailChangedNotice', { user: toPublicUser(user), newEmail });
+  }
+
   /** Removes the user and all of their tokens, then lets the app clean up its own data. */
   async function removeUser(user) {
     await adapter.deleteUser(user.id);
@@ -255,6 +283,7 @@ export function createAuthService({ adapter, tokens, config, hooks }) {
     register, login, refresh, logout, logoutAll, me,
     changePassword, forgotPassword, resetPassword, verifyEmail, resendVerification,
     listUsers, setRoles, setDisabled, addRoleByEmail, deleteAccount, deleteUser,
+    requestEmailChange, confirmEmailChange,
   };
 }
 

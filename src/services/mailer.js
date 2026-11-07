@@ -28,6 +28,12 @@ function message({ user, appName, subject, intro, action, link, expiresIn, ignor
   };
 }
 
+function notice({ user, appName, subject, lines }) {
+  const greeting = user.name ? `Hi ${user.name},` : 'Hi,';
+  const parts = [greeting, ...lines, appName];
+  return { subject, text: parts.join('\n\n'), html: parts.map((p) => `<p>${escapeHtml(p)}</p>`).join('\n') };
+}
+
 const defaultTemplates = {
   passwordReset: (data) => message({
     ...data,
@@ -43,6 +49,21 @@ const defaultTemplates = {
     action: 'Verify your email',
     ignore: 'If you did not create this account, you can ignore this email.',
   }),
+  emailChange: (data) => message({
+    ...data,
+    subject: `Confirm your new ${data.appName} email`,
+    intro: `Please confirm this address to use it for your ${data.appName} account.`,
+    action: 'Confirm your new email',
+    ignore: 'If you did not ask for this, you can ignore this email and nothing will change.',
+  }),
+  emailChanged: (data) => notice({
+    ...data,
+    subject: `Your ${data.appName} email was changed`,
+    lines: [
+      `The email address for your ${data.appName} account was changed to ${data.newEmail}.`,
+      'If you did not do this, contact support straight away.',
+    ],
+  }),
 };
 
 /** Reads email settings from the environment. Returns null when SMTP_URL is not set. */
@@ -52,14 +73,14 @@ export function emailConfigFromEnv(env = process.env) {
 }
 
 /**
- * Builds the sendPasswordResetEmail and sendVerificationEmail hooks.
- *   { smtp | transport, from, appUrl, appName, resetPath, verifyPath, templates }
+ * Builds the email hooks: password reset, verification, and email change with its notice to the old address.
+ *   { smtp | transport, from, appUrl, appName, resetPath, verifyPath, changeEmailPath, templates }
  * `smtp` is an SMTP URL or nodemailer options. `transport` is anything with sendMail().
  */
 export function createEmailHooks(options, { resetTokenTtlMs, verifyTokenTtlMs }) {
   const {
     smtp, transport, from, appUrl, appName = 'Your app',
-    resetPath = '/reset-password', verifyPath = '/verify-email', templates = {},
+    resetPath = '/reset-password', verifyPath = '/verify-email', changeEmailPath = '/confirm-email-change', templates = {},
   } = options;
 
   if (!smtp && !transport) throw new Error('createAuth: `email` needs `smtp` or `transport`');
@@ -69,9 +90,9 @@ export function createEmailHooks(options, { resetTokenTtlMs, verifyTokenTtlMs })
   const mailer = transport ?? nodemailer.createTransport(smtp);
   const linkTo = (path, token) => `${appUrl.replace(/\/+$/, '')}${path}?token=${encodeURIComponent(token)}`;
 
-  const send = async (template, user, link, ttlMs) => {
-    const { subject, text, html } = await template({ user, link, appName, expiresIn: formatDuration(ttlMs) });
-    await mailer.sendMail({ from, to: user.email, subject, text, html });
+  const send = async (template, user, link, ttlMs, extra = {}) => {
+    const { subject, text, html } = await template({ user, link, appName, expiresIn: formatDuration(ttlMs), ...extra });
+    await mailer.sendMail({ from, to: extra.to ?? user.email, subject, text, html });
   };
 
   return {
@@ -79,5 +100,9 @@ export function createEmailHooks(options, { resetTokenTtlMs, verifyTokenTtlMs })
       send(templates.passwordReset ?? defaultTemplates.passwordReset, user, linkTo(resetPath, token), resetTokenTtlMs),
     sendVerificationEmail: ({ user, token }) =>
       send(templates.verifyEmail ?? defaultTemplates.verifyEmail, user, linkTo(verifyPath, token), verifyTokenTtlMs),
+    sendEmailChangeEmail: ({ user, newEmail, token }) =>
+      send(templates.emailChange ?? defaultTemplates.emailChange, user, linkTo(changeEmailPath, token), verifyTokenTtlMs, { to: newEmail, newEmail }),
+    sendEmailChangedNotice: ({ user, newEmail }) =>
+      send(templates.emailChanged ?? defaultTemplates.emailChanged, user, null, 0, { newEmail }),
   };
 }

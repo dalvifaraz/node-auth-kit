@@ -57,8 +57,11 @@ export function mongoAdapter({ db, usersCollection = 'users', tokensCollection =
     async updateUser(id, fields) {
       const _id = await toId(id);
       if (!_id) return null;
-      const res = await users.findOneAndUpdate({ _id }, { $set: fields }, { returnDocument: 'after' });
-      return map(res);
+      try {
+        return map(await users.findOneAndUpdate({ _id }, { $set: fields }, { returnDocument: 'after' }));
+      } catch (err) {
+        throw err?.code === DUPLICATE_KEY ? Errors.emailTaken() : err;
+      }
     },
     async listUsers({ limit, offset, search }) {
       const filter = search ? { email: { $regex: search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') } } : {};

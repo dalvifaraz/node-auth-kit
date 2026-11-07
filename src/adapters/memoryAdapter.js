@@ -24,6 +24,9 @@ export function memoryAdapter() {
     async updateUser(id, fields) {
       const u = users.get(String(id));
       if (!u) return null;
+      if (fields.email && fields.email !== u.email) {
+        for (const other of users.values()) if (other.email === fields.email) throw Errors.emailTaken();
+      }
       Object.assign(u, fields);
       return clone(u);
     },

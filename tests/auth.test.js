@@ -17,6 +17,8 @@ function buildApp(overrides = {}) {
     hooks: {
       sendPasswordResetEmail: ({ user, token }) => { sent.reset = { email: user.email, token }; },
       sendVerificationEmail: ({ user, token }) => { sent.verify = { email: user.email, token }; },
+      sendEmailChangeEmail: ({ newEmail, token }) => { sent.change = { email: newEmail, token }; },
+      sendEmailChangedNotice: ({ user, newEmail }) => { sent.changed = { email: user.email, newEmail }; },
     },
     ...overrides,
   });
@@ -810,6 +812,84 @@ describe('account deletion', () => {
     await request(app).delete('/auth/admin/users/' + member.user.id).set(...bearer(admin.accessToken)).expect(404);
     await request(app).delete('/auth/admin/users/' + boss.id).set(...bearer(admin.accessToken)).expect(400);
     await request(app).post('/auth/login').send(creds).expect(401);
+  });
+});
+
+describe('email change', () => {
+  const newEmail = 'jane.new@example.com';
+  async function session(overrides) {
+    const ctx = buildApp(overrides);
+    const { body } = await request(ctx.app).post('/auth/register').send(creds);
+    return { ...ctx, body, as: bearer(body.accessToken) };
+  }
+
+  it('changes the address only after the new one is confirmed', async () => {
+    const { app, sent, as, body } = await session();
+    await request(app).post('/auth/change-email').set(...as).send({ password: creds.password, newEmail: 'Jane.New@Example.com' }).expect(200);
+    assert.equal(sent.change.email, newEmail);
+    await request(app).post('/auth/login').send(creds).expect(200);
+
+    await request(app).post('/auth/confirm-email-change').send({ token: sent.change.token }).expect(204);
+    assert.deepEqual(sent.changed, { email: 'jane@example.com', newEmail });
+    await request(app).post('/auth/login').send(creds).expect(401);
+    const login = await request(app).post('/auth/login').send({ email: newEmail, password: creds.password }).expect(200);
+    assert.equal(login.body.user.emailVerified, true);
+    await request(app).get('/private').set(...bearer(body.accessToken)).expect(401);
+    await request(app).post('/auth/confirm-email-change').send({ token: sent.change.token }).expect(401);
+  });
+
+  it('needs the right password', async () => {
+    const { app, as } = await session();
+    await request(app).post('/auth/change-email').set(...as).send({ password: 'wrong1234', newEmail }).expect(401);
+  });
+
+  it('refuses a taken address, at request and at confirmation', async () => {
+    const { app, sent, as } = await session();
+    await request(app).post('/auth/register').send({ email: 'taken@example.com', password: 'secret123' });
+    await request(app).post('/auth/change-email').set(...as).send({ password: creds.password, newEmail: 'taken@example.com' }).expect(409);
+    await request(app).post('/auth/change-email').set(...as).send({ password: creds.password, newEmail }).expect(200);
+    await request(app).post('/auth/register').send({ email: newEmail, password: 'secret123' });
+    await request(app).post('/auth/confirm-email-change').send({ token: sent.change.token }).expect(409);
+  });
+
+  it('rejects the current address and invalid ones', async () => {
+    const { app, as } = await session();
+    await request(app).post('/auth/change-email').set(...as).send({ password: creds.password, newEmail: creds.email }).expect(400);
+    await request(app).post('/auth/change-email').set(...as).send({ password: creds.password, newEmail: 'nope' }).expect(400);
+  });
+
+  it('keeps only the latest link and limits how often it is sent', async () => {
+    const { app, sent, as } = await session({ emailCooldownMs: 0 });
+    await request(app).post('/auth/change-email').set(...as).send({ password: creds.password, newEmail }).expect(200);
+    const first = sent.change.token;
+    await request(app).post('/auth/change-email').set(...as).send({ password: creds.password, newEmail }).expect(200);
+    await request(app).post('/auth/confirm-email-change').send({ token: first }).expect(401);
+
+    const limited = await session();
+    await request(limited.app).post('/auth/change-email').set(...limited.as).send({ password: creds.password, newEmail }).expect(200);
+    await request(limited.app).post('/auth/change-email').set(...limited.as).send({ password: creds.password, newEmail }).expect(429);
+  });
+
+  it('answers 501 when email change is not set up', async () => {
+    const hooks = { sendPasswordResetEmail: () => {} };
+    const { app, as } = await session({ hooks });
+    await request(app).post('/auth/change-email').set(...as).send({ password: creds.password, newEmail }).expect(501);
+  });
+
+  it('sends both emails with built-in email', async () => {
+    const mails = [];
+    const transport = { sendMail: async (mail) => { mails.push(mail); } };
+    const email = { transport, from: 'a@b.co', appUrl: 'https://app.example.com', appName: 'Demo' };
+    const { app, as } = await session({ hooks: {}, email });
+    await request(app).post('/auth/change-email').set(...as).send({ password: creds.password, newEmail }).expect(200);
+    assert.equal(mails[0].to, newEmail);
+    assert.equal(mails[0].subject, 'Confirm your new Demo email');
+    const token = new URL(mails[0].text.match(/https:\/\/\S+/)[0]).searchParams.get('token');
+    assert.match(mails[0].text, /\/confirm-email-change\?token=/);
+    await request(app).post('/auth/confirm-email-change').send({ token }).expect(204);
+    assert.equal(mails[1].to, 'jane@example.com');
+    assert.equal(mails[1].subject, 'Your Demo email was changed');
+    assert.match(mails[1].text, /jane\.new@example\.com/);
   });
 });
 

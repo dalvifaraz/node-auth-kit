@@ -7,6 +7,7 @@ export const TOKEN_TYPES = {
   REFRESH_USED: 'refresh_used', // marker left by rotation, used to detect replays
   PASSWORD_RESET: 'password_reset',
   EMAIL_VERIFY: 'email_verify',
+  EMAIL_CHANGE: 'email_change',
 };
 
 export function createTokenService({ adapter, config }) {

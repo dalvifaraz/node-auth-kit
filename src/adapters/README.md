@@ -20,7 +20,7 @@ that implements these 12 async methods and pass it to `createAuth({ adapter })`.
 | `deleteExpiredTokens()` | nothing | anything |
 
 Rules:
-- `email` must be unique (add a unique index). On a duplicate, `createUser` must throw `Errors.emailTaken()`.
+- `email` must be unique (add a unique index). On a duplicate, `createUser` and `updateUser` must throw `Errors.emailTaken()`.
 - `consumeToken` must find and delete in one atomic operation, so that concurrent calls with one token return the record exactly once.
 - `listUsers` must treat `search` as literal text, not as a pattern.
 - Lookups by an id that is malformed for your database must return `null`, not throw.
