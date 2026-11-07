@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import express from 'express';
 import request from 'supertest';
-import { runAdapterContract } from './adapterContract.js';
+import { runAdapterContract } from '../src/testing/adapterContract.js';
 import { createAuth } from '../src/index.js';
 import { postgresAdapter } from '../src/adapters/postgresAdapter.js';
 import { mongoAdapter } from '../src/adapters/mongoAdapter.js';

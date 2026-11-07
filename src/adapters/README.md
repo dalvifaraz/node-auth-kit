@@ -31,4 +31,9 @@ Rules:
 - `tokenHash` should be indexed/unique.
 - Optional: `init()` — create tables/indexes. Called by you, not by the core.
 
-Use `tests/adapterContract.js` to test your own adapter against the same suite.
+Test your own adapter against the same suite, with `node --test`:
+
+```js
+import { runAdapterContract } from 'node-auth-kit/testing';
+runAdapterContract('mysql', () => mysqlAdapter({ pool }));
+```

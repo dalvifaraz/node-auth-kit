@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import express from 'express';
 import request from 'supertest';
 import { createAuth, memoryAdapter, emailConfigFromEnv } from '../src/index.js';
-import { runAdapterContract } from './adapterContract.js';
+import { runAdapterContract } from '../src/testing/adapterContract.js';
 
 runAdapterContract('memory', () => memoryAdapter());
 

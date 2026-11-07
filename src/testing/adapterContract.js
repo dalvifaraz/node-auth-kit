@@ -1,6 +1,6 @@
 /**
  * Reusable contract tests. Run them against ANY adapter to prove it works with the core:
- *   import { runAdapterContract } from './adapterContract.js';
+ *   import { runAdapterContract } from 'node-auth-kit/testing';
  *   runAdapterContract('postgres', () => postgresAdapter({ pool }));
  */
 import { describe, it } from 'node:test';

@@ -8,7 +8,8 @@
     ".": "./src/index.js",
     "./adapters/memory": "./src/adapters/memoryAdapter.js",
     "./adapters/mongo": "./src/adapters/mongoAdapter.js",
-    "./adapters/postgres": "./src/adapters/postgresAdapter.js"
+    "./adapters/postgres": "./src/adapters/postgresAdapter.js",
+    "./testing": "./src/testing/adapterContract.js"
   },
   "scripts": {
     "start": "node examples/server.js",
@@ -50,5 +51,11 @@
     "mongodb": "^7.8.0",
     "pg": "^8.23.1",
     "supertest": "^7.0.0"
-  }
+  },
+  "files": [
+    "src",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ]
 }
