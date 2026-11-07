@@ -9,7 +9,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [20, 22, 24]
+        include:
+          - node: 20
+          - node: 22
+          - node: 24
+          - node: 24
+            express: 5
     services:
       postgres:
         image: postgres:17
@@ -33,6 +38,8 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
+      - if: matrix.express == 5
+        run: npm install --no-save express@5
       - run: npm test
       - name: Report Mongo service logs
         if: failure()
