@@ -17,5 +17,7 @@ export const Errors = {
   invalidToken: (msg = 'Invalid or expired token') => new AuthError(msg, 401, 'INVALID_TOKEN'),
   notAvailable: (msg) => new AuthError(msg, 501, 'NOT_AVAILABLE'),
   tooManyRequests: (msg = 'Too many requests, try again later') => new AuthError(msg, 429, 'RATE_LIMITED'),
+  identityTaken: () => new AuthError('This sign-in is already linked to an account', 409, 'IDENTITY_TAKEN'),
+  emailNotVerified: () => new AuthError('The sign-in provider has not verified this email', 403, 'EMAIL_NOT_VERIFIED'),
   notFound: (msg = 'Not found') => new AuthError(msg, 404, 'NOT_FOUND'),
 };

@@ -105,6 +105,20 @@ export function runAdapterContract(name, makeAdapter) {
       assert.equal((await a.findUserById(u.id)).passwordHash, null);
     });
 
+    it('links sign-in identities', async () => {
+      const a = await makeAdapter();
+      const u = await newUser(a);
+      const providerUserId = uid();
+      assert.equal(await a.findUserIdByIdentity('google', providerUserId), null);
+      await a.linkIdentity({ userId: String(u.id), provider: 'google', providerUserId });
+      assert.equal(String(await a.findUserIdByIdentity('google', providerUserId)), String(u.id));
+      assert.equal(await a.findUserIdByIdentity('github', providerUserId), null);
+      const other = await newUser(a);
+      await assert.rejects(a.linkIdentity({ userId: String(other.id), provider: 'google', providerUserId }), { code: 'IDENTITY_TAKEN' });
+      await a.deleteUser(u.id);
+      assert.equal(await a.findUserIdByIdentity('google', providerUserId), null);
+    });
+
     it('updates users', async () => {
       const a = await makeAdapter();
       const u = await newUser(a);

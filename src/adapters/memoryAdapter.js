@@ -5,6 +5,7 @@ import { Errors } from '../utils/errors.js';
 export function memoryAdapter() {
   const users = new Map();
   const tokens = new Map();
+  const identities = new Map(); // "provider:providerUserId" -> userId
   const clone = (v) => (v ? structuredClone(v) : null);
 
   return {
@@ -33,6 +34,15 @@ export function memoryAdapter() {
     async deleteUser(id) {
       users.delete(String(id));
       for (const [k, t] of tokens) if (t.userId === String(id)) tokens.delete(k);
+      for (const [k, userId] of identities) if (userId === String(id)) identities.delete(k);
+    },
+    async findUserIdByIdentity(provider, providerUserId) {
+      return identities.get(`${provider}:${providerUserId}`) ?? null;
+    },
+    async linkIdentity({ userId, provider, providerUserId }) {
+      const key = `${provider}:${providerUserId}`;
+      if (identities.has(key)) throw Errors.identityTaken();
+      identities.set(key, String(userId));
     },
     async listUsers({ limit, offset, search }) {
       const matches = [...users.values()]

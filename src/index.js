@@ -10,6 +10,7 @@ import { AuthError } from './utils/errors.js';
 
 const REQUIRED_ADAPTER_METHODS = [
   'createUser', 'findUserByEmail', 'findUserById', 'updateUser', 'listUsers', 'deleteUser',
+  'findUserIdByIdentity', 'linkIdentity',
   'saveToken', 'findToken', 'consumeToken', 'deleteToken', 'deleteUserTokens', 'deleteExpiredTokens',
 ];
 

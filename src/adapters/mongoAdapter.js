@@ -10,9 +10,12 @@ import { Errors } from '../utils/errors.js';
 
 const DUPLICATE_KEY = 11000;
 
-export function mongoAdapter({ db, usersCollection = 'users', tokensCollection = 'auth_tokens', ObjectId }) {
+export function mongoAdapter({
+  db, usersCollection = 'users', tokensCollection = 'auth_tokens', identitiesCollection = 'auth_identities', ObjectId,
+}) {
   const users = db.collection(usersCollection);
   const tokens = db.collection(tokensCollection);
+  const identities = db.collection(identitiesCollection);
 
   // ObjectId can be injected; otherwise resolved lazily so `mongodb` stays an optional dependency.
   let OID = ObjectId;
@@ -38,6 +41,8 @@ export function mongoAdapter({ db, usersCollection = 'users', tokensCollection =
       await tokens.createIndex({ tokenHash: 1 }, { unique: true });
       await tokens.createIndex({ userId: 1, type: 1 });
       await tokens.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // auto-cleanup
+      await identities.createIndex({ provider: 1, providerUserId: 1 }, { unique: true });
+      await identities.createIndex({ userId: 1 });
     },
     async createUser(data) {
       try {
@@ -75,6 +80,18 @@ export function mongoAdapter({ db, usersCollection = 'users', tokensCollection =
       const _id = await toId(id);
       if (_id) await users.deleteOne({ _id });
       await tokens.deleteMany({ userId: String(id) });
+      await identities.deleteMany({ userId: String(id) });
+    },
+    async findUserIdByIdentity(provider, providerUserId) {
+      const doc = await identities.findOne({ provider, providerUserId });
+      return doc ? doc.userId : null;
+    },
+    async linkIdentity({ userId, provider, providerUserId }) {
+      try {
+        await identities.insertOne({ userId: String(userId), provider, providerUserId, createdAt: new Date() });
+      } catch (err) {
+        throw err?.code === DUPLICATE_KEY ? Errors.identityTaken() : err;
+      }
     },
     async saveToken(record) {
       await tokens.insertOne({ ...record });

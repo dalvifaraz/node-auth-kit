@@ -52,6 +52,14 @@ CREATE TABLE IF NOT EXISTS auth_tokens (
 );
 CREATE INDEX IF NOT EXISTS auth_tokens_user_type_idx ON auth_tokens (user_id, type);
 CREATE INDEX IF NOT EXISTS auth_tokens_expires_idx ON auth_tokens (expires_at);
+CREATE TABLE IF NOT EXISTS auth_identities (
+  provider         TEXT NOT NULL,
+  provider_user_id TEXT NOT NULL,
+  user_id          UUID NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (provider, provider_user_id)
+);
+CREATE INDEX IF NOT EXISTS auth_identities_user_idx ON auth_identities (user_id);
 `;
 
 export function postgresAdapter({ pool }) {
@@ -127,7 +135,18 @@ export function postgresAdapter({ pool }) {
     },
     async deleteUser(id) {
       if (!isUuid(id)) return;
-      await q('DELETE FROM auth_users WHERE id = $1::uuid', [String(id)]); // tokens go with it (ON DELETE CASCADE)
+      await q('DELETE FROM auth_users WHERE id = $1::uuid', [String(id)]); // tokens and identities go with it (ON DELETE CASCADE)
+    },
+    async findUserIdByIdentity(provider, providerUserId) {
+      const { rows } = await q('SELECT user_id FROM auth_identities WHERE provider = $1 AND provider_user_id = $2', [provider, providerUserId]);
+      return rows[0]?.user_id ?? null;
+    },
+    async linkIdentity({ userId, provider, providerUserId }) {
+      try {
+        await q('INSERT INTO auth_identities (provider, provider_user_id, user_id) VALUES ($1, $2, $3)', [provider, providerUserId, userId]);
+      } catch (err) {
+        throw err?.code === UNIQUE_VIOLATION ? Errors.identityTaken() : err;
+      }
     },
     async listUsers({ limit, offset, search }) {
       const where = search ? 'WHERE email LIKE $1' : '';
