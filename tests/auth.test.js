@@ -917,16 +917,9 @@ describe('jwt secret rotation', () => {
 });
 
 describe('accounts without a password', () => {
-  async function passwordless() {
-    const ctx = buildApp();
-    const { body } = await request(ctx.app).post('/auth/register').send(creds);
-    await ctx.auth.service.setDisabled(body.user.id, false);
-    const adapterUser = await ctx.auth.service.me(body.user.id);
-    return { ...ctx, body, adapterUser };
-  }
-
   it('reports hasPassword', async () => {
-    const { body } = await passwordless();
+    const { app } = buildApp();
+    const { body } = await request(app).post('/auth/register').send(creds);
     assert.equal(body.user.hasPassword, true);
   });
 

@@ -4,7 +4,7 @@
  */
 import 'dotenv/config';
 import express from 'express';
-import { createAuth, emailConfigFromEnv } from '../src/index.js';
+import { createAuth, emailConfigFromEnv, oauthConfigFromEnv } from '../src/index.js';
 
 async function buildAdapter() {
   switch (process.env.DB_DRIVER ?? 'memory') {
@@ -41,15 +41,21 @@ const consoleEmail = {
     console.log(`[email] reset link for ${user.email}: ${process.env.APP_URL}/reset-password?token=${token}`),
   sendVerificationEmail: async ({ user, token }) =>
     console.log(`[email] verify link for ${user.email}: ${process.env.APP_URL}/verify-email?token=${token}`),
+  sendEmailChangeEmail: async ({ newEmail, token }) =>
+    console.log(`[email] confirm link for ${newEmail}: ${process.env.APP_URL}/confirm-email-change?token=${token}`),
+  sendEmailChangedNotice: async ({ user, newEmail }) =>
+    console.log(`[email] notice to ${user.email}: address changed to ${newEmail}`),
 };
 
 const auth = createAuth({
   adapter: await buildAdapter(),
   jwtSecret: process.env.JWT_SECRET,
+  previousJwtSecrets: process.env.JWT_PREVIOUS_SECRETS?.split(',').filter(Boolean),
   accessTokenTtl: process.env.ACCESS_TOKEN_TTL ?? '15m',
   allowedRegisterFields: ['phone'],
   email,
   hooks: email ? {} : consoleEmail,
+  oauth: oauthConfigFromEnv(),
   cookie: process.env.COOKIE_LOGIN === 'true' ? { secure: process.env.COOKIE_SECURE !== 'false' } : undefined,
 });
 
