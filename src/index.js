@@ -38,11 +38,14 @@ export function createAuth(options = {}) {
   if (!adapter) throw new Error('createAuth: `adapter` is required');
   const missing = REQUIRED_ADAPTER_METHODS.filter((m) => typeof adapter[m] !== 'function');
   if (missing.length) throw new Error(`createAuth: adapter is missing methods: ${missing.join(', ')}`);
-  if (!options.jwtSecret || options.jwtSecret.length < 32) {
-    throw new Error('createAuth: `jwtSecret` must be at least 32 characters');
-  }
-  if (/change-?me/i.test(options.jwtSecret)) {
-    throw new Error('createAuth: `jwtSecret` is still a placeholder; generate one with the command in .env.example');
+  const previousJwtSecrets = options.previousJwtSecrets ?? [];
+  for (const [label, secret] of [['jwtSecret', options.jwtSecret], ...previousJwtSecrets.map((s) => ['previousJwtSecrets', s])]) {
+    if (typeof secret !== 'string' || secret.length < 32) {
+      throw new Error(`createAuth: \`${label}\` must be at least 32 characters`);
+    }
+    if (/change-?me/i.test(secret)) {
+      throw new Error(`createAuth: \`${label}\` is still a placeholder; generate one with the command in .env.example`);
+    }
   }
 
   if (options.requireVerifiedEmail && options.emailVerification === false) {
@@ -56,6 +59,7 @@ export function createAuth(options = {}) {
 
   const config = {
     jwtSecret: options.jwtSecret,
+    previousJwtSecrets,
     accessTokenTtl: options.accessTokenTtl ?? '15m',
     refreshTokenTtlMs: options.refreshTokenTtlMs ?? 30 * DAY,
     refreshReuseGraceMs: options.refreshReuseGraceMs ?? 10 * 1000,

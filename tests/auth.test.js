@@ -893,6 +893,29 @@ describe('email change', () => {
   });
 });
 
+describe('jwt secret rotation', () => {
+  const oldSecret = 'old-secret-old-secret-old-secret-1234';
+
+  it('accepts tokens signed with a previous secret, and signs new ones with the current', async () => {
+    const before = buildApp({ jwtSecret: oldSecret });
+    const token = before.auth.tokens.signAccessToken({ id: 'u1', email: 'a@b.co', roles: [] });
+    const { auth } = buildApp({ previousJwtSecrets: [oldSecret], checkTokenVersion: false });
+    assert.equal(auth.tokens.verifyAccessToken(token).sub, 'u1');
+    const fresh = auth.tokens.signAccessToken({ id: 'u1', email: 'a@b.co', roles: [] });
+    assert.throws(() => before.auth.tokens.verifyAccessToken(fresh), /Invalid or expired token/);
+  });
+
+  it('rejects them once the old secret is removed', () => {
+    const before = buildApp({ jwtSecret: oldSecret });
+    const token = before.auth.tokens.signAccessToken({ id: 'u1', email: 'a@b.co', roles: [] });
+    assert.throws(() => buildApp().auth.tokens.verifyAccessToken(token), /Invalid or expired token/);
+  });
+
+  it('checks previous secrets at startup', () => {
+    assert.throws(() => buildApp({ previousJwtSecrets: ['short'] }), /previousJwtSecrets/);
+  });
+});
+
 describe('configuration', () => {
   it('fails fast on a bad adapter or weak secret', () => {
     assert.throws(() => createAuth({ adapter: {}, jwtSecret: 'x'.repeat(32) }), /missing methods/);

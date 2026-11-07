@@ -21,12 +21,16 @@ export function createTokenService({ adapter, config }) {
     );
   }
 
+  /** Tokens signed with the current secret or, during a rotation, an older one are accepted. */
   function verifyAccessToken(token) {
-    try {
-      return jwt.verify(token, jwtSecret, { issuer, audience, algorithms: ['HS256'] });
-    } catch {
-      throw Errors.invalidToken();
+    for (const secret of [jwtSecret, ...config.previousJwtSecrets]) {
+      try {
+        return jwt.verify(token, secret, { issuer, audience, algorithms: ['HS256'] });
+      } catch {
+        // try the next secret
+      }
     }
+    throw Errors.invalidToken();
   }
 
   /** Issue an opaque one-time token, store only its hash. Returns the raw token. */
